@@ -10,8 +10,8 @@ build/
 *.egg
 
 # Virtual environments
-venv/
-env/
+*venv/
+*env/
 .env
 
 # IDE specific files
