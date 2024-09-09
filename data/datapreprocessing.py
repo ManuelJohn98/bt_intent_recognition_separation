@@ -38,5 +38,5 @@ def convert_all_raw_data(path: str = "data/raw_data") -> dict:
     labeled_data = dict()
     for file in _get_file_names():
         labeled_data = _concat_json(labeled_data, _convert_to_json(file))
-    with open("data/labeled_data.json", "w") as f:
+    with open("data/processed_data.json", "w") as f:
         json.dump(labeled_data, f)
