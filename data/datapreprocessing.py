@@ -31,17 +31,17 @@ def _convert_to_json(file: str) -> dict:
             # convert labels to BIO format
             if label == "_":
                 current_label = ""
-                labeled_data[" ".join(("# " + turn_id, content))] = "O"
+                labeled_data[" # ".join(("# " + turn_id, content))] = "O"
                 continue
             if current_turn_no != turn_no:
                 current_turn_no = turn_no
                 current_label = label
-                labeled_data[" ".join(("# " + turn_id, content))] = "B-" + label
+                labeled_data[" # ".join(("# " + turn_id, content))] = "B-" + label
             elif current_label != label:
                 current_label = label
-                labeled_data[" ".join(("# " + turn_id, content))] = "B-" + label
+                labeled_data[" # ".join(("# " + turn_id, content))] = "B-" + label
             else:
-                labeled_data[" ".join(("# " + turn_id, content))] = "I-" + label
+                labeled_data[" # ".join(("# " + turn_id, content))] = "I-" + label
     return labeled_data
 
 
