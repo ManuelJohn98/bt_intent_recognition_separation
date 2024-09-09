@@ -42,3 +42,4 @@ annotations/
 *.tsv
 *.csv
 *.txt
+*data.json
