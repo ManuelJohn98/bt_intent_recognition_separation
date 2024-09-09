@@ -4,6 +4,9 @@
 It is concerned with handling the user input.
 """
 import argparse
+import os
+from data.datapreprocessing import convert_all_raw_data
+from config import data_directory, raw_data_directory
 
 
 def main():
@@ -30,7 +33,26 @@ def main():
         action="store_const",
         required=False,
     )
-    parser.parse_args()
+    parser.add_argument(
+        "-e",
+        "--extension",
+        type=str,
+        help="The extension of the raw data files to be processed, standard is tsv",
+        default="tsv",
+        required=False,
+        nargs=1,
+    )
+    args = parser.parse_args()
+    # model_directory = os.path.join(root_directory, "model")
+    if (m.contains("train") for m in args.mode):
+        if "clean_train" in args.mode:
+            # delete all preprocessed data
+            if os.path.exists(os.path.join(data_directory, "processed_data.json")):
+                os.remove(os.path.join(data_directory, "processed_data.json"))
+        # preprocess data if not already done
+        if not os.path.exists(os.path.join(data_directory, "processed_data.json")):
+            convert_all_raw_data(args.extension)
+        # TODO: train model
 
 
 if __name__ == "__main__":
