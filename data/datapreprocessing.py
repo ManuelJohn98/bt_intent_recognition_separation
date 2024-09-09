@@ -5,26 +5,41 @@ import os
 import json
 
 
-def _get_file_names(ext: str = "tsv") -> list:
+def _get_file_names_from_dir(path: os.PathLike, ext: str = "tsv") -> list:
     """This function returns a list of all file names with the given extension in the current directory."""
-    return [file for file in os.listdir() if file.endswith(ext)]
+    return [file for file in os.listdir(path) if file.endswith(ext)]
 
 
 def _convert_to_json(file: str) -> dict:
     """This function converts a tsv file in the WebAnno format to json-like objects in memory with the labels in the BIO format."""
     labeled_data = dict()
     with open(file, "r") as f:
+        current_turn_no = 0
+        current_label = ""
         # Read WebAnno format
         for line in f.readlines():
             if line.startswith("#") or line == "\n":
                 continue
-        elements = line.split("\t")  # line is guaranteed to have 4 elements
-        turn_no = elements[0]
-        content = elements[2]
-        label = (
-            elements[3].split("[")[0].replace("_", "other")
-        )  # get the lable which is prefix of last element
-        labeled_data[" # ".join(("# " + turn_no, content))] = label
+            elements = line.split("\t")  # line is guaranteed to have 4 elements
+            turn_id = elements[0]
+            turn_no = int(turn_id.split("-")[0])
+            content = elements[2]
+            # get the lable which is prefix of last element
+            label = elements[3].split("[")[0]
+            # convert labels to BIO format
+            if label == "_":
+                current_label = ""
+                labeled_data[" ".join(("# " + turn_id, content))] = "O"
+                continue
+            if current_turn_no != turn_no:
+                current_turn_no = turn_no
+                current_label = label
+                labeled_data[" ".join(("# " + turn_id, content))] = "B-" + label
+            elif current_label != label:
+                current_label = label
+                labeled_data[" ".join(("# " + turn_id, content))] = "B-" + label
+            else:
+                labeled_data[" ".join(("# " + turn_id, content))] = "I-" + label
     return labeled_data
 
 
@@ -33,10 +48,10 @@ def _concat_json(json1: dict, json2: dict) -> dict:
     return {**json1, **json2}
 
 
-def convert_all_raw_data(path: str = "data/raw_data") -> dict:
+def convert_all_raw_data(path: str = "data/raw_data") -> None:
     """This function converts all tsv files in the given directory to a single json file with the labels in the BIO format."""
     labeled_data = dict()
-    for file in _get_file_names():
+    for file in _get_file_names_from_dir(path):
         labeled_data = _concat_json(labeled_data, _convert_to_json(file))
     with open("data/processed_data.json", "w") as f:
         json.dump(labeled_data, f)
