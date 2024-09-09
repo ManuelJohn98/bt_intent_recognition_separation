@@ -41,5 +41,6 @@ annotations/
 # data files
 *.tsv
 *.csv
-*.txt
+*.tsv.txt
+statistics.txt
 *data.json
