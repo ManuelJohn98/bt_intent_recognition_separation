@@ -16,8 +16,8 @@ def main():
         "-m",
         "-- mode",
         type=str,
-        help="The mode in which the program should run: train, infer, or experiment",
-        choices=["train", "infer", "experiment"],
+        help="The mode in which the program should run: train, validate, infer, or experiment",
+        choices=["train", "validate", "infer", "experiment"],
         required=True,
         nargs=1,
     )
