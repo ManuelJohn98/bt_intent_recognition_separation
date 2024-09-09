@@ -14,7 +14,7 @@ def main():
     )
     parser.add_argument(
         "-m",
-        "-- mode",
+        "--mode",
         type=str,
         help="The mode in which the program should run: train, validate, infer, or experiment",
         choices=["train", "validate", "infer", "experiment"],
