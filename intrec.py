@@ -9,7 +9,8 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(
         description='This program can instantiate a model for intent recognition and sepratation. \
-            The model can either be trained on your data or you can replicate the results of the bachelor thesis "Intent Recognition and Separation for E-DRZ" \
+            The model can either be trained on your data or you can replicate the results \
+                of the bachelor thesis "Intent Recognition and Separation for E-DRZ" \
                 by using the provided data in the zip file in the data folder.',
     )
     parser.add_argument(
