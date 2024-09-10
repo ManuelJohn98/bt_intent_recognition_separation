@@ -3,6 +3,7 @@
 
 import os
 import json
+import re
 from config import data_directory, raw_data_directory
 
 
@@ -12,6 +13,11 @@ def _get_file_names_from_dir(ext: str = "tsv") -> list:
     """
     return [file for file in os.listdir(raw_data_directory) if file.endswith(ext)]
 
+def _remove_label_trailing_number(label: str) -> str:
+    """This function will return a label without any trailing number.
+    """
+    match = re.match(r"([A-Za-z_\/]+)", label)
+    return match.group(1)
 
 def _convert_to_json(file: str) -> dict:
     """This function converts a tsv file in the WebAnno
@@ -35,17 +41,21 @@ def _convert_to_json(file: str) -> dict:
             # convert labels to BIO format
             if label == "_":
                 current_label = ""
-                labeled_data[" # ".join(("# " + turn_id, content))] = "O"
+                labeled_data["#".join((turn_id, content))] = "O"
                 continue
             if current_turn_no != turn_no:
                 current_turn_no = turn_no
                 current_label = label
-                labeled_data[" # ".join(("# " + turn_id, content))] = "B-" + label
+                # sometimes the label has a number at the end
+                label = _remove_label_trailing_number(label)
+                labeled_data["#".join((turn_id, content))] = "B-" + label
             elif current_label != label:
                 current_label = label
-                labeled_data[" # ".join(("# " + turn_id, content))] = "B-" + label
+                label = _remove_label_trailing_number(label)
+                labeled_data["#".join((turn_id, content))] = "B-" + label
             else:
-                labeled_data[" # ".join(("# " + turn_id, content))] = "I-" + label
+                # only use I for these intermediary labels without actual label
+                labeled_data["#".join((turn_id, content))] = "I"
     return labeled_data
 
 
