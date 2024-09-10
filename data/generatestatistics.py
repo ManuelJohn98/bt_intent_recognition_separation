@@ -53,7 +53,7 @@ def _sum_statistics_raw_data() -> dict:
             else:
                 label_dict[label] = other_label_dict[label]
     # sum all values except multi_intents
-    label_dict["total"] = sum(
+    label_dict["TOTAL"] = sum(
         [label_dict[label] for label in label_dict if label != "multi_intents"]
     )
     pprint(label_dict)
@@ -72,6 +72,8 @@ def _statistics_processed_data_from_file() -> dict:
             label_dict[value] += 1
         else:
             label_dict[value] = 1
+    # sum all values
+    label_dict["TOTAL"] = sum(label_dict.values())
     pprint(label_dict)
     return label_dict
 
