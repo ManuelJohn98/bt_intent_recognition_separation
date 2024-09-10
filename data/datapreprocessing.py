@@ -68,4 +68,4 @@ def convert_all_raw_data(exentension: str) -> None:
     with open(
         os.path.join(data_directory, "processed_data.json"), "w", encoding="utf8"
     ) as f:
-        json.dump(labeled_data, f)
+        json.dump(labeled_data, f, ensure_ascii=False)
