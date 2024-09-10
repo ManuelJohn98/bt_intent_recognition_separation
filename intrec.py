@@ -6,7 +6,8 @@ It is concerned with handling the user input.
 import argparse
 import os
 from data.datapreprocessing import convert_all_raw_data
-from config import data_directory, raw_data_directory
+from data.generatestatistics import write_statistics_raw_data
+from config import data_directory, STAT
 
 
 def main():
@@ -43,6 +44,11 @@ def main():
         nargs=1,
     )
     args = parser.parse_args()
+    STAT = args.s
+    if STAT:
+        # generate statistics for the raw data
+        write_statistics_raw_data()
+
     if (m.contains("train") for m in args.mode):
         if "clean_train" in args.mode:
             # delete all preprocessed data
