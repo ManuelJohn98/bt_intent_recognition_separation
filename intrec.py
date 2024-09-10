@@ -6,7 +6,7 @@ It is concerned with handling the user input.
 import argparse
 import os
 from data.datapreprocessing import convert_all_raw_data
-from data.generatestatistics import write_statistics_raw_data
+from data.generatestatistics import write_statistics
 from config import data_directory, STAT
 
 
@@ -47,7 +47,7 @@ def main():
     STAT = args.s
     if STAT:
         # generate statistics for the raw data
-        write_statistics_raw_data()
+        write_statistics("raw")
 
     if (m.contains("train") for m in args.mode):
         if "clean_train" in args.mode:
@@ -57,6 +57,8 @@ def main():
         # preprocess data if not already done
         if not os.path.exists(os.path.join(data_directory, "processed_data.json")):
             convert_all_raw_data(args.extension)
+        if STAT:
+            write_statistics("processed")
         # TODO: train model
 
 

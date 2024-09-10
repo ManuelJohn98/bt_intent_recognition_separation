@@ -3,7 +3,8 @@
 import os
 import re
 from pprint import pprint
-from config import raw_data_directory, statistics_directory
+import json
+from config import raw_data_directory, statistics_directory, data_directory
 
 
 def _statistics_raw_data_from_file(filename) -> dict:
@@ -41,7 +42,7 @@ def _statistics_raw_data_from_file(filename) -> dict:
     return label_dict
 
 
-def write_statistics_raw_data():
+def _sum_statistics_raw_data() -> dict:
     label_dict = dict()
     for file in os.listdir(raw_data_directory):
         # add statistics of the current file to the label_dict
@@ -56,8 +57,34 @@ def write_statistics_raw_data():
         [label_dict[label] for label in label_dict if label != "multi_intents"]
     )
     pprint(label_dict)
+    return label_dict
 
-    filename = os.path.join(statistics_directory, "raw_data_statistics.txt")
+
+def _statistics_processed_data_from_file() -> dict:
+    filename = os.path.join(data_directory, "processed_data.json")
+    processed_data = dict()
+    with open(filename, "r", encoding="utf8") as f:
+        processed_data = json.load(f)
+    # count the number of labels
+    label_dict = dict()
+    for value in processed_data.values():
+        if value in label_dict:
+            label_dict[value] += 1
+        else:
+            label_dict[value] = 1
+    pprint(label_dict)
+    return label_dict
+
+
+def write_statistics(mode: str) -> None:
+    if mode == "raw":
+        label_dict = _sum_statistics_raw_data()
+        filename = os.path.join(statistics_directory, "raw_data_statistics.txt")
+    elif mode == "processed":
+        label_dict = _statistics_processed_data_from_file()
+        filename = os.path.join(statistics_directory, "processed_data_statistics.txt")
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
     with open(filename, "w", encoding="utf8") as f:
         # f.write(f"# {filename}\n")
         for label in label_dict:
