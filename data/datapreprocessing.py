@@ -7,12 +7,16 @@ from config import data_directory, raw_data_directory
 
 
 def _get_file_names_from_dir(ext: str = "tsv") -> list:
-    """This function returns a list of all file names with the given extension in the current directory."""
+    """This function returns a list of all file names
+    with the given extension in the current directory.
+    """
     return [file for file in os.listdir(raw_data_directory) if file.endswith(ext)]
 
 
 def _convert_to_json(file: str) -> dict:
-    """This function converts a tsv file in the WebAnno format to json-like objects in memory with the labels in the BIO format."""
+    """This function converts a tsv file in the WebAnno
+    format to json-like objects in memory with the labels in the BIO format.
+    """
     file = os.path.join(raw_data_directory, file)
     labeled_data = dict()
     with open(file, "r", encoding="utf8") as f:
@@ -51,7 +55,9 @@ def _concat_json(json1: dict, json2: dict) -> dict:
 
 
 def convert_all_raw_data(exentension: str) -> None:
-    """This function converts all tsv files in the given directory to a single json file with the labels in the BIO format."""
+    """This function converts all tsv files in the given directory 
+    to a single json file with the labels in the BIO format.
+    """
     labeled_data = dict()
     if exentension != "":
         for file in _get_file_names_from_dir(exentension):
