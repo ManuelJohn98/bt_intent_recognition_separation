@@ -43,7 +43,6 @@ def main():
         nargs=1,
     )
     args = parser.parse_args()
-    # model_directory = os.path.join(root_directory, "model")
     if (m.contains("train") for m in args.mode):
         if "clean_train" in args.mode:
             # delete all preprocessed data
