@@ -42,5 +42,5 @@ annotations/
 *.tsv
 *.csv
 *.tsv.txt
-statistics.txt
+*statistics.txt
 *data.json
