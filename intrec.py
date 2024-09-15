@@ -6,11 +6,11 @@ It is concerned with handling the user input.
 import argparse
 import os
 from data.datapreprocessing import convert_all_raw_data
-from data.generatestatistics import write_statistics
-from config import data_directory, STAT
+from config import data_directory, load_config, save_config
 
 
 def main():
+    """Main function of this project."""
     parser = argparse.ArgumentParser(
         description='This program can instantiate a model for intent recognition and sepratation. \
             The model can either be trained on your data or you can replicate the results \
@@ -45,12 +45,13 @@ def main():
         nargs=1,
     )
     args = parser.parse_args()
-    STAT = args.s
-    if STAT:
-        # generate statistics for the raw data
-        write_statistics("raw")
 
-    if (m.contains("train") for m in args.mode):
+    # update config with stat flag
+    config = load_config()
+    config["statistics"] = args.s
+    save_config(config)
+
+    if any("train" in m for m in args.mode):
         if "clean_train" in args.mode:
             # delete all preprocessed data
             if os.path.exists(os.path.join(data_directory, "processed_data.json")):
@@ -58,8 +59,9 @@ def main():
         # preprocess data if not already done
         if not os.path.exists(os.path.join(data_directory, "processed_data.json")):
             convert_all_raw_data(args.extension)
-        if STAT:
-            write_statistics("processed")
+        # if args.s:
+        #     stats = StatisticsCollector()
+        #     stats.write_to_file()
         # TODO: train model
 
 
