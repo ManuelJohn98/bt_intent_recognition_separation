@@ -193,7 +193,7 @@ class StatisticsCollector(metaclass=SingletonMeta):
                         res += f"{key}: {value}\n"
                 elif isinstance(getattr(self, attr), int):
                     res += "---------------------------\n"
-                    res += f"{attr}: {getattr(self, attr)}\n"
+                    res += f"{attr.replace("_", " ")}: {getattr(self, attr)}\n"
         return res
 
     def write_to_file(self) -> None:
