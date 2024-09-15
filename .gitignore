@@ -38,9 +38,10 @@ proposal/
 related_works/
 annotations/
 
-# data files
+# project specific files
 *.tsv
 *.csv
 *.tsv.txt
 *statistics.txt
 *data.json
+config.yaml

@@ -13,6 +13,7 @@ raw_data_directory = os.path.join(data_directory, "raw_data")
 statistics_directory = os.path.join(root_directory, "stats")
 # TODO: set model directory
 
+
 def load_config() -> dict:
     """
     Load configuration from a YAML file.
@@ -27,14 +28,17 @@ def load_config() -> dict:
         FileNotFoundError: If the 'config.yaml' file does not exist.
         yaml.YAMLError: If there is an error parsing the YAML file.
     """
+    if not os.path.exists("config.yaml"):
+        return {}
     with open("config.yaml", "r", encoding="utf8") as f:
         return yaml.safe_load(f)
+
 
 def save_config(config: dict) -> None:
     """
     Save the given configuration dictionary to a YAML file.
 
-    This function raises a KeyError to prevent deletion of 
+    This function raises a KeyError to prevent deletion of
     configuration settings during runtime. Otherwise, it writes
     the new configuration to a file named 'yaml.config'.
 

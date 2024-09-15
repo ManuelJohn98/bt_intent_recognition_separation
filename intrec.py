@@ -46,8 +46,8 @@ def main():
     )
     args = parser.parse_args()
 
-    # update config with stat flag
-    config = load_config()
+    # create config with stat flag
+    config = dict()
     config["statistics"] = args.s
     save_config(config)
 
