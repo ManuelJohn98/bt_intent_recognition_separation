@@ -21,14 +21,15 @@ def _remove_count_from_label(label: str) -> str:
     return match.group(1)
 
 
-def _preprocess_raw_data(file: str, ext: str = "tsv") -> list:
+def _preprocess_raw_data(file: str, ext: str = "tsv") -> dict:
     """This function takes a tsv file in the WebAnno
     format to have the data labeled in the BIO format.
     Returns a csv string.
     """
     STAT = load_config()["statistics"]
     file = os.path.join(raw_data_directory, file)
-    labeled_data = []
+    labeled_data = {}
+    labeled_data["data"] = []
     labels = set()
     with open(file, "r", encoding="utf8") as f:
         current_turn_no = 0
@@ -55,7 +56,7 @@ def _preprocess_raw_data(file: str, ext: str = "tsv") -> list:
             # convert labels to BIO format
             if label_with_count == "_":
                 current_label = ""
-                labeled_data_point["id"] = turn_no
+                labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "O"
                 labeled_data_point["token"] = token
                 labels.add("O")
@@ -68,7 +69,7 @@ def _preprocess_raw_data(file: str, ext: str = "tsv") -> list:
                 current_label = label_with_count
                 # sometimes the label has a number at the end
                 label = _remove_count_from_label(label_with_count)
-                labeled_data_point["id"] = turn_no
+                labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "B-" + label
                 labeled_data_point["token"] = token
                 labels.add("B-" + label)
@@ -78,7 +79,7 @@ def _preprocess_raw_data(file: str, ext: str = "tsv") -> list:
             elif current_label != label_with_count:
                 current_label = label_with_count
                 label = _remove_count_from_label(label_with_count)
-                labeled_data_point["id"] = turn_no
+                labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "B-" + label
                 labeled_data_point["token"] = token
                 labels.add("B-" + label)
@@ -88,30 +89,44 @@ def _preprocess_raw_data(file: str, ext: str = "tsv") -> list:
                     stats.count_unlabeled("need_for_separation")
             else:
                 # only use I for these intermediary labels without actual label
-                labeled_data_point["id"] = turn_no
+                labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "I"
                 labeled_data_point["token"] = token
                 labels.add("I")
             # add the labaled data point to labeled data
-            labeled_data.append(labeled_data_point)
-    labeled_data = [sorted(labels)] + labeled_data
+            labeled_data["data"].append(labeled_data_point)
+    labeled_data["labels"] = labels
     return labeled_data
 
 
-def _transform_to_huggingface_format(labeled_data: list) -> list:
-    huggingface_format = list()
-    labels = labeled_data[0]
+def _transform_to_huggingface_format(labeled_data: list, labels: set) -> list:
+    huggingface_format = {}
+    huggingface_format["data"] = []
+    labels = sorted(labels)
+    huggingface_format["id2label"] = {}
+    huggingface_format["label2id"] = {}
+    for i, label in enumerate(labels):
+        huggingface_format["id2label"][i] = label
+        huggingface_format["label2id"][label] = i
     current_turn_no = 0
+    data_id = 0
     for data_point in labeled_data[1:]:
-        turn_no = data_point["id"]
+        turn_no = data_point["turn_no"]
         if current_turn_no != turn_no:
             current_turn_no = turn_no
-            huggingface_format.append(dict())
-            huggingface_format[-1]["id"] = turn_no
-            huggingface_format[-1]["labels"] = []
-            huggingface_format[-1]["tokens"] = []
-        huggingface_format[-1]["labels"].append(labels.index(data_point["label"]))
-        huggingface_format[-1]["tokens"].append(data_point["token"])
+            data_id += 1
+            huggingface_format["data"].append({})
+            huggingface_format["data"][-1]["id"] = data_id
+            huggingface_format["data"][-1]["labels"] = []
+            huggingface_format["data"][-1]["tokens"] = []
+        huggingface_format["data"][-1]["labels"].append(
+            labels.index(data_point["label"])
+        )
+        huggingface_format["data"][-1]["tokens"].append(data_point["token"])
+    huggingface_format["num_rows"] = huggingface_format["data"][-1]["id"]
+    if load_config()["statistics"]:
+        stats = StatisticsCollector()
+        stats.add_statistics("num_rows", huggingface_format["num_rows"])
     return huggingface_format
 
 
@@ -126,20 +141,22 @@ def convert_all_raw_data(exentension: str) -> None:
     """
     STAT = load_config()["statistics"]
     labeled_data = []
+    labels = set()
     if exentension != "":
         for file in _get_file_names_from_dir(exentension):
-            labeled_data = labeled_data + _transform_to_huggingface_format(
-                _preprocess_raw_data(file, exentension)
-            )
+            preprocessed_data = _preprocess_raw_data(file, exentension)
+            labeled_data = labeled_data + preprocessed_data["data"]
+            labels = labels.union(preprocessed_data["labels"])
     else:
         for file in _get_file_names_from_dir():
-            labeled_data = labeled_data + _transform_to_huggingface_format(
-                _preprocess_raw_data(file)
-            )
+            preprocessed_data = _preprocess_raw_data(file)
+            labeled_data = labeled_data + preprocessed_data["data"]
+            labels = labels.union(preprocessed_data["labels"])
+    transformed_labeled_data = _transform_to_huggingface_format(labeled_data, labels)
     with open(
         os.path.join(data_directory, "processed_data.json"), "w", encoding="utf8"
     ) as f:
-        json.dump(labeled_data, f, ensure_ascii=False)
+        json.dump(transformed_labeled_data, f, ensure_ascii=False)
     if STAT:
         stats = StatisticsCollector()
         stats.write_to_file()
