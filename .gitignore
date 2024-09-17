@@ -37,11 +37,12 @@ bachelor_seminar/
 proposal/
 related_works/
 annotations/
+models/[a-zA-Z0-9_-]*
 
 # project specific files
 *.tsv
 *.csv
 *.tsv.txt
 *statistics.txt
-*data.json
+*data*.json
 config.yaml

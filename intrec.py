@@ -49,6 +49,7 @@ def main():
     # create config with stat flag
     config = dict()
     config["statistics"] = args.s
+    config["models"] = ["ikim-uk-essen/geberta-base", "dbmdz/bert-base-german-cased"]
     save_config(config)
 
     if any("train" in m for m in args.mode):
