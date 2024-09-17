@@ -154,7 +154,7 @@ def convert_all_raw_data(exentension: str) -> None:
             labels = labels.union(preprocessed_data["labels"])
     transformed_labeled_data = _transform_to_huggingface_format(labeled_data, labels)
     with open(
-        os.path.join(data_directory, "processed_data.json"), "w", encoding="utf8"
+        os.path.join(data_directory, "preprocessed_data.json"), "w", encoding="utf8"
     ) as f:
         json.dump(transformed_labeled_data, f, ensure_ascii=False)
     if STAT:
