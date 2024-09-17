@@ -54,8 +54,8 @@ def main():
     if any("train" in m for m in args.mode):
         if "clean_train" in args.mode:
             # delete all preprocessed data
-            if os.path.exists(os.path.join(data_directory, "processed_data.json")):
-                os.remove(os.path.join(data_directory, "processed_data.json"))
+            if os.path.exists(os.path.join(data_directory, "preprocessed_data.json")):
+                os.remove(os.path.join(data_directory, "preprocessed_data.json"))
         # preprocess data if not already done
         if not os.path.exists(os.path.join(data_directory, "processed_data.json")):
             convert_all_raw_data(args.extension)
