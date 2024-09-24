@@ -6,7 +6,7 @@ It is concerned with handling the user input.
 import argparse
 import os
 from data.datapreprocessing import convert_all_raw_data
-from config import data_directory, models_directory, load_config, save_config
+from config import data_directory, save_config
 from utils.utils import delete_models
 from training import train
 
