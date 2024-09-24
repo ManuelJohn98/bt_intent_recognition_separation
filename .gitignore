@@ -46,3 +46,4 @@ models/[a-zA-Z0-9_-]*
 *statistics.txt
 *data*.json
 config.yaml
+*.png

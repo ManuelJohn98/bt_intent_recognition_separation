@@ -2,7 +2,7 @@
 
 from typing import Any
 import os
-from config import model_directory
+from config import models_directory
 
 
 class SingletonMeta(type):
@@ -36,7 +36,7 @@ def delete_models(*model_names: str) -> None:
     """
     for model_name in model_names:
         model_name += "_intent_recognition_separation"
-        model = os.path.join(model_directory, model_name)
+        model = os.path.join(models_directory, model_name)
         if not os.path.exists(model):
             continue
         for checkpoint_folder in os.listdir(model):
@@ -44,4 +44,4 @@ def delete_models(*model_names: str) -> None:
             for file in os.listdir(checkpoint_folder_path):
                 os.remove(os.path.join(checkpoint_folder_path, file))
             os.rmdir(checkpoint_folder_path)
-        os.rmdir(model)
+        os.removedirs(model)

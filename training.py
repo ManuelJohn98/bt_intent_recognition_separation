@@ -1,4 +1,6 @@
 import os
+import json
+import concurrent.futures
 from datasets import load_dataset
 from transformers import (
     AutoTokenizer,
@@ -9,8 +11,8 @@ from transformers import (
 )
 import evaluate
 import numpy as np
-import json
-from config import data_directory, model_directory, load_config
+from config import data_directory, models_directory, load_config
+from stats.collectstatistics import StatisticsCollector
 
 
 def _shuffle_data(preprocessed_data: dict) -> dict:
@@ -48,7 +50,7 @@ def _train_test_split(filename: str, test_size=0.15, shuffle=True, fold="") -> N
         json.dump(_test_data, f)
 
 
-def train(filename: str, test_size=0.15) -> None:
+def train_model(filename: str, model_name: str, test_size=0.15) -> None:
     # Set seed for reproducibility
     np.random.seed(load_config()["seed"])
 
@@ -71,8 +73,7 @@ def train(filename: str, test_size=0.15) -> None:
 
     print(dataset)
 
-    pre_trained_model = load_config()["models"][0]
-    tokenizer = AutoTokenizer.from_pretrained(pre_trained_model)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     def tokenize_and_align_labels(data_row):
         tokenized_inputs = tokenizer(
@@ -130,7 +131,7 @@ def train(filename: str, test_size=0.15) -> None:
         }
 
     model = AutoModelForTokenClassification.from_pretrained(
-        pre_trained_model,
+        model_name,
         num_labels=len(labels_list),
         id2label=preprocessed_data["id2label"],
         label2id=preprocessed_data["label2id"],
@@ -138,17 +139,18 @@ def train(filename: str, test_size=0.15) -> None:
 
     training_args = TrainingArguments(
         output_dir=os.path.join(
-            model_directory, f"{pre_trained_model}_intent_recognition_separation"
+            models_directory, f"{model_name}_intent_recognition_separation"
         ),
         learning_rate=2e-5,
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
-        num_train_epochs=20,
+        num_train_epochs=40,
         weight_decay=0.01,
         logging_strategy="steps",
         logging_steps=250,
         eval_strategy="steps",
         eval_steps=250,
+        save_total_limit=1,
         # load_best_model_at_end=True,
     )
 
@@ -165,8 +167,25 @@ def train(filename: str, test_size=0.15) -> None:
     trainer.train()
     model.save_pretrained(
         os.path.join(
-            model_directory,
-            f"{pre_trained_model}_intent_recognition_separation",
+            models_directory,
+            f"{model_name}_intent_recognition_separation",
             "final_model",
         )
     )
+
+
+def train(filename: str, test_size=0.15) -> None:
+    # train each model in separate thread
+    models_list = load_config()["models"]
+    # pool = concurrent.futures.ThreadPoolExecutor()
+    # for model in models_list:
+    #     pool.submit(train_model, filename, model, test_size)
+    # pool.shutdown(wait=True)
+    for model in models_list:
+        if not os.path.exists(
+            os.path.join(models_directory, f"{model}_intent_recognition_separation")
+        ):
+            train_model(filename, model, test_size)
+        if load_config()["statistics"]:
+            stats = StatisticsCollector()
+            stats.plot_checkpoints(f"{model}_intent_recognition_separation")

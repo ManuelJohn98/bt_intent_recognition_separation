@@ -12,7 +12,7 @@ raw_data_directory = os.path.join(data_directory, "raw_data")
 # set statistics directory
 statistics_directory = os.path.join(root_directory, "stats")
 #  set model directory
-model_directory = os.path.join(root_directory, "models")
+models_directory = os.path.join(root_directory, "models")
 
 
 def load_config() -> dict:

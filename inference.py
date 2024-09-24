@@ -1,12 +1,12 @@
 import os
 from pprint import pprint
 from transformers import pipeline
-from config import model_directory
+from config import models_directory
 
 classifier = pipeline(
     "ner",
     os.path.join(
-        model_directory,
+        models_directory,
         "ikim-uk-essen/geberta-base_intent_recognition_separation/checkpoint-750",
     ),
     device=0,

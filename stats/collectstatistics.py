@@ -7,9 +7,10 @@ import os
 # from pprint import pprint
 from collections import Counter
 import matplotlib.pyplot as plt
+import json
 
 # import json
-from config import statistics_directory
+from config import statistics_directory, models_directory
 from utils.utils import SingletonMeta
 
 
@@ -197,18 +198,96 @@ class StatisticsCollector(metaclass=SingletonMeta):
                     res += f"{attr.replace("_", " ")}: {getattr(self, attr)}\n"
         return res
 
+    def _get_last_checkpoint_dir(self, model_name: str) -> str:
+        checkpoints_dir = os.path.join(models_directory, model_name)
+        checkpoints = os.listdir(checkpoints_dir)
+        checkpoints = [
+            int(checkpoint.split("-")[1])
+            for checkpoint in checkpoints
+            if checkpoint.startswith("checkpoint")
+            ]
+        checkpoints.sort()
+        last_checkpoint = checkpoints[-1]
+        return os.path.join(checkpoints_dir, f"checkpoint-{last_checkpoint}")
 
-    def plot_checkpoints(self, model_name: str) -> plt.Figure:
-        """
-        Plots the checkpoints of the model training process.
 
-        Args:
-            model_name (str): The name of the model to plot the checkpoints for.
+    def plot_checkpoints(self, model_name: str):
+        # Get the folder with the highest checkpoint number
+        last_checkpoint_dir = self._get_last_checkpoint_dir(model_name)
 
-        Returns:
-            plt.Figure: The figure containing the plot.
-        """
-        pass
+        # Load log_history from the last checkpoint
+        log_history = []
+        with open(
+            os.path.join(last_checkpoint_dir, "trainer_state.json"), "r", encoding="utf8"
+            ) as f:
+            log_history = json.load(f)["log_history"]
+
+        # Extract every two adjacent elements from the log_history
+        eval_stats = []
+        train_stats = []
+        for i, elem in enumerate(log_history):
+            if i % 2 == 0:
+                train_stats.append(elem)
+            else:
+                eval_stats.append(elem)
+
+        # Plot the train and eval stats against the number of epochs
+        # in two separate subplots
+        fig, axs = plt.subplots(2)
+        fig.suptitle("Train and Eval Stats")
+
+        # add grid only to the y-axis
+        axs[0].grid(axis="y")
+        axs[1].grid(axis="y")
+
+        # add vertical lines for each epoch
+        # for i in range(150, 3000, 150):
+        #     axs[0].axvline(x=i, color="gray", linestyle="--", alpha=0.5)
+        #     axs[1].axvline(x=i, color="gray", linestyle="--", alpha=0.5)
+
+        # set space between subplots
+        fig.tight_layout(pad=3.0)
+
+        # set size for subplots
+        fig.set_size_inches(10, 10)
+
+        axs[0].plot(
+            [elem["step"] for elem in train_stats], [elem["loss"] for elem in train_stats],
+            label="Train Loss"
+            )
+        axs[0].set_title("Train Stats")
+        axs[0].set_xlabel("Steps")
+        axs[0].set_ylabel("Loss")
+
+        axs[1].plot(
+            [elem["step"] for elem in eval_stats], [elem["eval_loss"] for elem in eval_stats],
+            label="Eval Loss"
+            )
+        axs[1].plot(
+            [elem["step"] for elem in eval_stats], [elem["eval_f1"] for elem in eval_stats],
+            label="Eval F1"
+            )
+        axs[1].plot(
+            [elem["step"] for elem in eval_stats], [elem["eval_accuracy"] for elem in eval_stats],
+            label="Eval Accuracy",
+            alpha=0.35
+            )
+        axs[1].plot(
+            [elem["step"] for elem in eval_stats], [elem["eval_precision"] for elem in eval_stats],
+            label="Eval Precision",
+            alpha=0.35
+            )
+        axs[1].plot(
+            [elem["step"] for elem in eval_stats], [elem["eval_recall"] for elem in eval_stats],
+            label="Eval Recall",
+            alpha=0.35
+            )
+        axs[1].set_title("Eval Stats")
+        axs[1].set_xlabel("Steps")
+        axs[1].legend()
+
+        # Show the plot
+        plt.show()
 
     def write_to_file(self) -> None:
         """

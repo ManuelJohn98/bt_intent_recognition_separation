@@ -6,7 +6,7 @@ It is concerned with handling the user input.
 import argparse
 import os
 from data.datapreprocessing import convert_all_raw_data
-from config import data_directory, model_directory, load_config, save_config
+from config import data_directory, models_directory, load_config, save_config
 from utils.utils import delete_models
 from training import train
 
@@ -61,7 +61,12 @@ def main():
     config = {}
     config["statistics"] = args.s
     config["seed"] = args.seed
-    config["models"] = ["ikim-uk-essen/geberta-base"]
+    config["models"] = [
+        "ikim-uk-essen/geberta-base",
+        # "flair/ner-german-large",
+        # "aseifert/distilbert-base-german-cased-comma-derstandard",
+        "dbmdz/bert-base-german-cased",
+    ]
     save_config(config)
 
     if any("train" in m for m in args.mode):
