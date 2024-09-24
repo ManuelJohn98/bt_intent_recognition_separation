@@ -6,6 +6,7 @@ import os
 # import re
 # from pprint import pprint
 from collections import Counter
+import matplotlib.pyplot as plt
 
 # import json
 from config import statistics_directory
@@ -195,6 +196,19 @@ class StatisticsCollector(metaclass=SingletonMeta):
                     res += "---------------------------\n"
                     res += f"{attr.replace("_", " ")}: {getattr(self, attr)}\n"
         return res
+
+
+    def plot_checkpoints(self, model_name: str) -> plt.Figure:
+        """
+        Plots the checkpoints of the model training process.
+
+        Args:
+            model_name (str): The name of the model to plot the checkpoints for.
+
+        Returns:
+            plt.Figure: The figure containing the plot.
+        """
+        pass
 
     def write_to_file(self) -> None:
         """

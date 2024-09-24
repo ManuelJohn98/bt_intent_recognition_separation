@@ -6,7 +6,9 @@ It is concerned with handling the user input.
 import argparse
 import os
 from data.datapreprocessing import convert_all_raw_data
-from config import data_directory, load_config, save_config
+from config import data_directory, model_directory, load_config, save_config
+from utils.utils import delete_models
+from training import train
 
 
 def main():
@@ -44,12 +46,22 @@ def main():
         required=False,
         nargs=1,
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="The seed for the random number generator connected to\
+            shuffling the dataset and to cross validation to ensure reproducibility",
+        default=42,
+        required=False,
+        nargs=1,
+    )
     args = parser.parse_args()
 
     # create config with stat flag
-    config = dict()
+    config = {}
     config["statistics"] = args.s
-    config["models"] = ["ikim-uk-essen/geberta-base", "dbmdz/bert-base-german-cased"]
+    config["seed"] = args.seed
+    config["models"] = ["ikim-uk-essen/geberta-base"]
     save_config(config)
 
     if any("train" in m for m in args.mode):
@@ -57,13 +69,12 @@ def main():
             # delete all preprocessed data
             if os.path.exists(os.path.join(data_directory, "preprocessed_data.json")):
                 os.remove(os.path.join(data_directory, "preprocessed_data.json"))
+            # delete all models
+            delete_models(*config["models"])
         # preprocess data if not already done
-        if not os.path.exists(os.path.join(data_directory, "processed_data.json")):
+        if not os.path.exists(os.path.join(data_directory, "preprocessed_data.json")):
             convert_all_raw_data(args.extension)
-        # if args.s:
-        #     stats = StatisticsCollector()
-        #     stats.write_to_file()
-        # TODO: train model
+        train(os.path.join(data_directory, "preprocessed_data.json"))
 
 
 if __name__ == "__main__":
