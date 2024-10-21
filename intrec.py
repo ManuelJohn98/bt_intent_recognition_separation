@@ -6,9 +6,9 @@ It is concerned with handling the user input.
 import argparse
 import os
 from data.datapreprocessing import convert_all_raw_data
-from config import data_directory, save_config
+from config import data_directory, cross_validation_directory, save_config
 from utils.utils import delete_models
-from training import train
+from training import train, cross_validate
 
 
 def main():
@@ -25,9 +25,35 @@ def main():
         type=str,
         help="The mode in which the program should run: \
             train, clean_train, validate, infer, or experiment",
-        choices=["train", "clean_train", "validate", "infer", "experiment"],
+        choices=["train", "clean_train", "cv", "infer", "experiment"],
         required=True,
         nargs=1,
+    )
+    parser.add_argument(
+        "--folds",
+        type=int,
+        help="The number of folds for cross validation, standard is 5.\
+            Only relevant if cv is chosen as mode",
+        default=5,
+        required=False,
+        nargs=1,
+    )
+    parser.add_argument(
+        "--no-shuffle",
+        help="Do not shuffle the dataset before any splitting, whether for \
+            simple holdout or cross validation. Shuffling is done by default.",
+        const=False,
+        default=True,
+        action="store_const",
+        required=False,
+    )
+    parser.add_argument(
+        "--clean",
+        help="Start from scratch, delete all preprocessed data and models",
+        const=True,
+        default=False,
+        action="store_const",
+        required=False,
     )
     parser.add_argument(
         "-s",
@@ -68,18 +94,39 @@ def main():
         "dbmdz/bert-base-german-cased",
     ]
     save_config(config)
+    shuffle = args.no_shuffle
 
-    if any("train" in m for m in args.mode):
-        if "clean_train" in args.mode:
-            # delete all preprocessed data
-            if os.path.exists(os.path.join(data_directory, "preprocessed_data.json")):
-                os.remove(os.path.join(data_directory, "preprocessed_data.json"))
-            # delete all models
-            delete_models(*config["models"])
+    if args.clean:
+        # delete all preprocessed data
+        if os.path.exists(os.path.join(data_directory, "preprocessed_data.json")):
+            os.remove(os.path.join(data_directory, "preprocessed_data.json"))
+        # delete all models
+        delete_models(*config["models"])
+        # delete all cross validation data
+        if os.path.exists(
+            os.path.join(cross_validation_directory, "tracked_stats.json")
+        ):
+            os.remove(os.path.join(cross_validation_directory, "tracked_stats.json"))
+    if "train" in args.mode:
         # preprocess data if not already done
         if not os.path.exists(os.path.join(data_directory, "preprocessed_data.json")):
             convert_all_raw_data(args.extension)
         train(os.path.join(data_directory, "preprocessed_data.json"))
+    if "cv" in args.mode:
+        # preprocess data if not already done
+        if not os.path.exists(os.path.join(data_directory, "preprocessed_data.json")):
+            convert_all_raw_data(args.extension)
+        # create empty tracked stats file if not already done
+        if not os.path.exists(
+            os.path.join(cross_validation_directory, "tracked_stats.json")
+        ):
+            with open(
+                os.path.join(cross_validation_directory, "tracked_stats.json"),
+                "w",
+                encoding="utf8",
+            ) as f:
+                f.write("{}")
+        cross_validate(args.folds, shuffle)
 
 
 if __name__ == "__main__":

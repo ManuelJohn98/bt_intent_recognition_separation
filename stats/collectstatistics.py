@@ -11,7 +11,7 @@ import json
 
 # import json
 from config import statistics_directory, models_directory
-from utils.utils import SingletonMeta
+from utils.utils import SingletonMeta, get_last_checkpoint_dir, get_train_eval_stats
 
 
 # def _statistics_raw_data_from_file(filename) -> dict:
@@ -198,38 +198,10 @@ class StatisticsCollector(metaclass=SingletonMeta):
                     res += f"{attr.replace("_", " ")}: {getattr(self, attr)}\n"
         return res
 
-    def _get_last_checkpoint_dir(self, model_name: str) -> str:
-        checkpoints_dir = os.path.join(models_directory, model_name)
-        checkpoints = os.listdir(checkpoints_dir)
-        checkpoints = [
-            int(checkpoint.split("-")[1])
-            for checkpoint in checkpoints
-            if checkpoint.startswith("checkpoint")
-            ]
-        checkpoints.sort()
-        last_checkpoint = checkpoints[-1]
-        return os.path.join(checkpoints_dir, f"checkpoint-{last_checkpoint}")
-
-
     def plot_checkpoints(self, model_name: str):
-        # Get the folder with the highest checkpoint number
-        last_checkpoint_dir = self._get_last_checkpoint_dir(model_name)
-
-        # Load log_history from the last checkpoint
-        log_history = []
-        with open(
-            os.path.join(last_checkpoint_dir, "trainer_state.json"), "r", encoding="utf8"
-            ) as f:
-            log_history = json.load(f)["log_history"]
-
-        # Extract every two adjacent elements from the log_history
-        eval_stats = []
-        train_stats = []
-        for i, elem in enumerate(log_history):
-            if i % 2 == 0:
-                train_stats.append(elem)
-            else:
-                eval_stats.append(elem)
+        train_stats, eval_stats = get_train_eval_stats(
+            get_last_checkpoint_dir(model_name)
+        )
 
         # Plot the train and eval stats against the number of epochs
         # in two separate subplots
@@ -252,36 +224,42 @@ class StatisticsCollector(metaclass=SingletonMeta):
         fig.set_size_inches(10, 10)
 
         axs[0].plot(
-            [elem["step"] for elem in train_stats], [elem["loss"] for elem in train_stats],
-            label="Train Loss"
-            )
+            [elem["step"] for elem in train_stats],
+            [elem["loss"] for elem in train_stats],
+            label="Train Loss",
+        )
         axs[0].set_title("Train Stats")
         axs[0].set_xlabel("Steps")
         axs[0].set_ylabel("Loss")
 
         axs[1].plot(
-            [elem["step"] for elem in eval_stats], [elem["eval_loss"] for elem in eval_stats],
-            label="Eval Loss"
-            )
+            [elem["step"] for elem in eval_stats],
+            [elem["eval_loss"] for elem in eval_stats],
+            label="Eval Loss",
+        )
         axs[1].plot(
-            [elem["step"] for elem in eval_stats], [elem["eval_f1"] for elem in eval_stats],
-            label="Eval F1"
-            )
+            [elem["step"] for elem in eval_stats],
+            [elem["eval_f1"] for elem in eval_stats],
+            label="Eval F1",
+        )
         axs[1].plot(
-            [elem["step"] for elem in eval_stats], [elem["eval_accuracy"] for elem in eval_stats],
+            [elem["step"] for elem in eval_stats],
+            [elem["eval_accuracy"] for elem in eval_stats],
             label="Eval Accuracy",
-            alpha=0.35
-            )
+            alpha=0.35,
+        )
         axs[1].plot(
-            [elem["step"] for elem in eval_stats], [elem["eval_precision"] for elem in eval_stats],
+            [elem["step"] for elem in eval_stats],
+            [elem["eval_precision"] for elem in eval_stats],
             label="Eval Precision",
-            alpha=0.35
-            )
+            alpha=0.35,
+        )
         axs[1].plot(
-            [elem["step"] for elem in eval_stats], [elem["eval_recall"] for elem in eval_stats],
+            [elem["step"] for elem in eval_stats],
+            [elem["eval_recall"] for elem in eval_stats],
             label="Eval Recall",
-            alpha=0.35
-            )
+            alpha=0.35,
+        )
         axs[1].set_title("Eval Stats")
         axs[1].set_xlabel("Steps")
         axs[1].legend()

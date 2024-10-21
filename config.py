@@ -13,6 +13,8 @@ raw_data_directory = os.path.join(data_directory, "raw_data")
 statistics_directory = os.path.join(root_directory, "stats")
 #  set model directory
 models_directory = os.path.join(root_directory, "models")
+# Set cross validation directory
+cross_validation_directory = os.path.join(root_directory, "cross_validation")
 
 
 def load_config() -> dict:

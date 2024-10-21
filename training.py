@@ -1,7 +1,7 @@
 import os
 import json
 import concurrent.futures
-from datasets import load_dataset
+from datasets import load_dataset, DatasetDict, Dataset
 from transformers import (
     AutoTokenizer,
     DataCollatorForTokenClassification,
@@ -11,8 +11,20 @@ from transformers import (
 )
 import evaluate
 import numpy as np
-from config import data_directory, models_directory, load_config
+from sklearn.model_selection import StratifiedKFold
+from config import (
+    data_directory,
+    models_directory,
+    cross_validation_directory,
+    load_config,
+)
 from stats.collectstatistics import StatisticsCollector
+from utils.utils import (
+    create_proxy_data,
+    get_last_checkpoint_dir,
+    get_train_eval_stats,
+    delete_models,
+)
 
 
 def _shuffle_data(preprocessed_data: dict) -> dict:
@@ -28,7 +40,12 @@ def _train_test_split(filename: str, test_size=0.15, shuffle=True, fold="") -> N
         data = json.load(f)
     if shuffle:
         data = _shuffle_data(data)
-    num_rows = data["num_rows"]
+    meta_data = {}
+    with open(
+        os.path.join(data_directory, "preprocessed_data.json"), "r", encoding="utf8"
+    ) as f:
+        meta_data = json.load(f)
+    num_rows = meta_data["num_rows"]
     split_index = int(round(num_rows * (1 - test_size)))
     _train_data = {}
     _train_data["data"] = []
@@ -43,25 +60,15 @@ def _train_test_split(filename: str, test_size=0.15, shuffle=True, fold="") -> N
     with open(
         os.path.join(data_directory, f"{filename}_train.json"), "w", encoding="utf8"
     ) as f:
-        json.dump(_train_data, f)
+        json.dump(_train_data, f, ensure_ascii=False)
     with open(
         os.path.join(data_directory, f"{filename}_test.json"), "w", encoding="utf8"
     ) as f:
-        json.dump(_test_data, f)
+        json.dump(_test_data, f, ensure_ascii=False)
 
 
 def train_model(filename: str, model_name: str, test_size=0.15) -> None:
-    # Set seed for reproducibility
-    np.random.seed(load_config()["seed"])
-
-    preprocessed_data = {}
-    with open(
-        os.path.join(data_directory, "preprocessed_data.json"), "r", encoding="utf8"
-    ) as f:
-        preprocessed_data = json.load(f)
-
-    _train_test_split(filename, test_size)
-
+    # Load dataset
     dataset = load_dataset(
         "json",
         data_files={
@@ -70,6 +77,13 @@ def train_model(filename: str, model_name: str, test_size=0.15) -> None:
         },
         field="data",
     )
+
+    # Load metadata
+    meta_data = {}
+    with open(
+        os.path.join(data_directory, "preprocessed_data.json"), "r", encoding="utf8"
+    ) as f:
+        meta_data = json.load(f)
 
     print(dataset)
 
@@ -105,7 +119,7 @@ def train_model(filename: str, model_name: str, test_size=0.15) -> None:
     tokenized_dataset = dataset.map(tokenize_and_align_labels, batched=True)
     data_collator = DataCollatorForTokenClassification(tokenizer)
     seqeval = evaluate.load("seqeval")
-    labels_list = list(preprocessed_data["label2id"].keys())
+    labels_list = list(meta_data["label2id"].keys())
 
     def compute_metrics(p):
         predictions, labels = p
@@ -133,8 +147,8 @@ def train_model(filename: str, model_name: str, test_size=0.15) -> None:
     model = AutoModelForTokenClassification.from_pretrained(
         model_name,
         num_labels=len(labels_list),
-        id2label=preprocessed_data["id2label"],
-        label2id=preprocessed_data["label2id"],
+        id2label=meta_data["id2label"],
+        label2id=meta_data["label2id"],
     )
 
     training_args = TrainingArguments(
@@ -144,13 +158,13 @@ def train_model(filename: str, model_name: str, test_size=0.15) -> None:
         learning_rate=2e-5,
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
-        num_train_epochs=40,
+        num_train_epochs=30,  # 40
         weight_decay=0.01,
         logging_strategy="steps",
-        logging_steps=250,
+        logging_steps=150,  # 250
         eval_strategy="steps",
-        eval_steps=250,
-        save_total_limit=1,
+        eval_steps=150,  # 250
+        # save_total_limit=1,
         # load_best_model_at_end=True,
     )
 
@@ -175,6 +189,18 @@ def train_model(filename: str, model_name: str, test_size=0.15) -> None:
 
 
 def train(filename: str, test_size=0.15) -> None:
+    # Set seed for reproducibility
+    np.random.seed(load_config()["seed"])
+
+    # preprocessed_data = {}
+    # with open(
+    #     os.path.join(data_directory, "preprocessed_data.json"), "r", encoding="utf8"
+    # ) as f:
+    #     preprocessed_data = json.load(f)
+
+    # Split data into train and test
+    _train_test_split(filename, test_size)
+
     # train each model in separate thread
     models_list = load_config()["models"]
     # pool = concurrent.futures.ThreadPoolExecutor()
@@ -189,3 +215,81 @@ def train(filename: str, test_size=0.15) -> None:
         if load_config()["statistics"]:
             stats = StatisticsCollector()
             stats.plot_checkpoints(f"{model}_intent_recognition_separation")
+
+
+def cross_validate_model(model_name: str, splits=5, shuffle=True) -> None:
+    # Get seed
+    seed = load_config()["seed"]
+    tracked_stats = {}
+    # Generate proxy data
+    preprocessed_data = {}
+    with open(
+        os.path.join(data_directory, "preprocessed_data.json"), "r", encoding="utf8"
+    ) as f:
+        preprocessed_data = json.load(f)
+    data = create_proxy_data(preprocessed_data["data"])
+
+    # Get splits
+    sfk = StratifiedKFold(n_splits=splits, shuffle=shuffle, random_state=seed)
+    splits = sfk.split(data, data[:, 1])
+
+    # cross validation
+    for i, (train_idx, test_idx) in enumerate(splits):
+        train_data = {"data": []}
+        test_data = {"data": []}
+        for line in preprocessed_data["data"]:
+            # Turn ids start at 1
+            if line["id"] - 1 in train_idx:
+                train_data["data"].append(line)
+            elif line["id"] - 1 in test_idx:
+                test_data["data"].append(line)
+            else:
+                raise ValueError("Invalid index")
+
+        with open(
+            os.path.join(data_directory, "preprocessed_data_train.json"),
+            "w",
+            encoding="utf8",
+        ) as f:
+            json.dump(train_data, f, ensure_ascii=False)
+        with open(
+            os.path.join(data_directory, "preprocessed_data_test.json"),
+            "w",
+            encoding="utf8",
+        ) as f:
+            json.dump(test_data, f, ensure_ascii=False)
+
+        train_model("preprocessed_data", model_name)
+
+        # Track train and eval stats
+        tracked_stats[str(i)] = {}
+        tracked_stats[str(i)]["train"], tracked_stats[str(i)]["eval"] = (
+            get_train_eval_stats(
+                get_last_checkpoint_dir(f"{model_name}_intent_recognition_separation")
+            )
+        )
+
+        delete_models(model_name)
+
+    return tracked_stats
+
+
+def cross_validate(splits=5, shuffle=True) -> None:
+    models_list = load_config()["models"]
+    tracked_stats = {}
+    for model in models_list:
+        tracked_stats[model] = cross_validate_model(model, splits, shuffle)
+        cv = {}
+        with open(
+            os.path.join(cross_validation_directory, "tracked_stats.json"),
+            "r",
+            encoding="utf8",
+        ) as f:
+            cv = json.load(f)
+        cv[model] = tracked_stats[model]
+        with open(
+            os.path.join(cross_validation_directory, "tracked_stats.json"),
+            "w",
+            encoding="utf8",
+        ) as f:
+            json.dump(cv, f, ensure_ascii=False)

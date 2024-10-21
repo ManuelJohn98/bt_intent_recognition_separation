@@ -99,20 +99,22 @@ def _preprocess_raw_data(file: str, ext: str = "tsv") -> dict:
     return labeled_data
 
 
-def _transform_to_huggingface_format(labeled_data: list, labels: set) -> list:
+def _transform_to_huggingface_format(labeled_data: list, labels: set) -> tuple:
     huggingface_format = {}
+    meta_data = {}
     huggingface_format["data"] = []
     labels = sorted(labels)
-    huggingface_format["id2label"] = {}
-    huggingface_format["label2id"] = {}
+    meta_data["id2label"] = {}
+    meta_data["label2id"] = {}
     for i, label in enumerate(labels):
-        huggingface_format["id2label"][i] = label
-        huggingface_format["label2id"][label] = i
+        meta_data["id2label"][i] = label
+        meta_data["label2id"][label] = i
     current_turn_no = 0
     data_id = 0
     for data_point in labeled_data[1:]:
         turn_no = data_point["turn_no"]
         if current_turn_no != turn_no:
+            # Prepare for new turn
             current_turn_no = turn_no
             data_id += 1
             huggingface_format["data"].append({})
@@ -123,11 +125,14 @@ def _transform_to_huggingface_format(labeled_data: list, labels: set) -> list:
             labels.index(data_point["label"])
         )
         huggingface_format["data"][-1]["tokens"].append(data_point["token"])
-    huggingface_format["num_rows"] = huggingface_format["data"][-1]["id"]
+    meta_data["num_rows"] = huggingface_format["data"][-1]["id"]
     if load_config()["statistics"]:
         stats = StatisticsCollector()
-        stats.add_statistics("num_rows", huggingface_format["num_rows"])
-    return huggingface_format
+        stats.add_statistics("num_rows", meta_data["num_rows"])
+    huggingface_format["id2label"] = meta_data["id2label"]
+    huggingface_format["label2id"] = meta_data["label2id"]
+    huggingface_format["num_rows"] = meta_data["num_rows"]
+    return huggingface_format, meta_data
 
 
 # def _concat_json(json1: dict, json2: dict) -> dict:
@@ -152,11 +157,17 @@ def convert_all_raw_data(exentension: str) -> None:
             preprocessed_data = _preprocess_raw_data(file)
             labeled_data = labeled_data + preprocessed_data["data"]
             labels = labels.union(preprocessed_data["labels"])
-    transformed_labeled_data = _transform_to_huggingface_format(labeled_data, labels)
+    transformed_labeled_data, meta_data = _transform_to_huggingface_format(
+        labeled_data, labels
+    )
     with open(
         os.path.join(data_directory, "preprocessed_data.json"), "w", encoding="utf8"
     ) as f:
         json.dump(transformed_labeled_data, f, ensure_ascii=False)
+    with open(
+        os.path.join(data_directory, "meta_data.json"), "w", encoding="utf8"
+    ) as f:
+        json.dump(meta_data, f, ensure_ascii=False)
     if STAT:
         stats = StatisticsCollector()
         stats.write_to_file()
