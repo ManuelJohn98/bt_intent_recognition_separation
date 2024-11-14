@@ -6,11 +6,11 @@ import os
 # import re
 # from pprint import pprint
 from collections import Counter
-import matplotlib.pyplot as plt
 import json
+import matplotlib.pyplot as plt
 
 # import json
-from config import statistics_directory, models_directory
+from config import statistics_directory, cross_validation_directory
 from utils.utils import SingletonMeta, get_last_checkpoint_dir, get_train_eval_stats
 
 
@@ -193,20 +193,30 @@ class StatisticsCollector(metaclass=SingletonMeta):
                         getattr(self, attr).items(), key=lambda x: x[1], reverse=True
                     ):
                         res += f"{key}: {value}\n"
-                elif isinstance(getattr(self, attr), int):
+                elif isinstance(getattr(self, attr), (int, float)):
                     res += "---------------------------\n"
                     res += f"{attr.replace("_", " ")}: {getattr(self, attr)}\n"
         return res
 
-    def plot_checkpoints(self, model_name: str):
+    def plot_checkpoints(self, model_name: str, output_name: str):
+        """
+        Plots the training and evaluation statistics of a model against the number of steps.
+        Args:
+            model_name (str): The name of the model for which to plot the statistics.
+        This function retrieves the training and evaluation statistics from the last checkpoint
+        directory of the specified model. It then creates a figure with two subplots: one for
+        the training statistics and one for the evaluation statistics. The training subplot
+        shows the training loss over the steps and the evaluation subplot shows the evaluation
+        loss, F1 score, accuracy, precision, and recall over the steps.
+        """
         train_stats, eval_stats = get_train_eval_stats(
-            get_last_checkpoint_dir(model_name)
+            get_last_checkpoint_dir(model_name, output_name)
         )
 
         # Plot the train and eval stats against the number of epochs
         # in two separate subplots
         fig, axs = plt.subplots(2)
-        fig.suptitle("Train and Eval Stats")
+        fig.suptitle(f"Train and Eval Stats\n{model_name}_{output_name}")
 
         # add grid only to the y-axis
         axs[0].grid(axis="y")
@@ -263,11 +273,9 @@ class StatisticsCollector(metaclass=SingletonMeta):
         axs[1].set_title("Eval Stats")
         axs[1].set_xlabel("Steps")
         axs[1].legend()
-
-        # Show the plot
         plt.show()
 
-    def write_to_file(self) -> None:
+    def write_to_file(self, prefix: str) -> None:
         """
         Writes the string representation of the current instance to a file named "statistics.txt"
         located in the `statistics_directory`.
@@ -276,6 +284,57 @@ class StatisticsCollector(metaclass=SingletonMeta):
         contents will be overwritten.
         """
         with open(
-            os.path.join(statistics_directory, "statistics.txt"), "w+", encoding="utf8"
+            os.path.join(statistics_directory, f"{prefix}statistics.txt"),
+            "w+",
+            encoding="utf8",
         ) as f:
             print(self, file=f, end="")
+
+    def plot_cv(self, prefix: str) -> None:
+        """
+        Plots the cross-validation F1 scores for different models.
+        Args:
+            prefix (str): The prefix used to locate the prefixed tracked_stats.json file.
+        Returns:
+            None
+        """
+        cv = {}
+        with open(
+            os.path.join(cross_validation_directory, f"{prefix}tracked_stats.json"),
+            "r",
+            encoding="utf8",
+        ) as f:
+            cv = json.load(f)
+
+        colors = ["blue", "lightblue"]
+
+        for i, model in enumerate(cv, 1):
+            stats = []
+            for fold in cv[model]:
+                max_f1 = 0.0
+                for checkpoint in range(1, len(cv[model][fold]["eval"])):
+                    max_f1 = max(max_f1, cv[model][fold]["eval"][checkpoint]["eval_f1"])
+                stats.append(max_f1)
+            plt.boxplot(
+                stats,
+                positions=[i],
+                showfliers=False,
+                widths=0.4,
+                patch_artist=True,
+                label=model,
+                boxprops={"facecolor": colors[i - 1]},
+            )
+        if prefix == "ablation_":
+            # add horizontal line as baseline
+            plt.axhline(
+                y=0.75, color="green", linestyle="--", label="Baseline Majority Label I"
+            )
+        # show grid
+        plt.grid()
+        # plt.yticks([0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1])
+        # plt.ylim(0.4, 1)
+        plt.ylabel("F1 Score")
+        plt.xticks([1, 2], ["", ""])
+        plt.xlim(0, 2.5)
+        plt.legend()
+        plt.show()
