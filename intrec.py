@@ -17,7 +17,7 @@ from config import (
     CROSS_VALIDATION_DIRECTORY,
     MODELS,
 )
-from utils.utils import (
+from utils.general import (
     delete_all_processed_data,
     delete_all_tracked_stats,
     check_for_splits,

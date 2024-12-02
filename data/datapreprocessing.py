@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import MultiLabelBinarizer
 from config import DATA_DIRECTORY, RAW_DATA_DIRECTORY, load_config, FREQUENCY_MAPPING
 from stats.collectstatistics import StatisticsCollector
-from utils.utils import create_proxy_data
+from utils.general import create_proxy_data
 
 
 def _get_file_names_from_dir(ext: str = "tsv") -> list:
@@ -260,7 +260,7 @@ def _transform_to_huggingface_format(
     if load_config()["statistics"]:
         stats = StatisticsCollector()
         stats.add_statistics("number_of_rows", metadata["num_rows"])
-        if not sep:
+        if not sep and "number_of_tokens" in stats.__dict__:
             stats.add_statistics(
                 "average_tokens_per_turn", stats.number_of_tokens / stats.number_of_rows
             )

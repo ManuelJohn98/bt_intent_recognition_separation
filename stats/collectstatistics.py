@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 # import json
 from config import STATISTICS_DIRECTORY, CROSS_VALIDATION_DIRECTORY
-from utils.utils import SingletonMeta, get_last_checkpoint_dir, get_train_eval_stats
+from utils.general import SingletonMeta, get_last_checkpoint_dir, get_train_eval_stats
 
 
 # def _statistics_raw_data_from_file(filename) -> dict:

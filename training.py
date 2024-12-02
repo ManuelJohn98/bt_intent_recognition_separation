@@ -15,7 +15,7 @@ from transformers import (
 import evaluate
 import numpy as np
 from config import DATA_DIRECTORY, MODELS_DIRECTORY
-from utils.utils import check_for_train_test
+from utils.general import check_for_train_test
 
 
 class ModelTrainer:

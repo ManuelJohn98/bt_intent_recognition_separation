@@ -6,7 +6,7 @@ from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder
 from training import ModelTrainer
 from inference import IntentRecognition, IntentRecognitionSeparation, IntentSeparation
 from config import DATA_DIRECTORY
-from utils.utils import get_train_eval_stats, get_last_checkpoint_dir
+from utils.general import get_train_eval_stats, get_last_checkpoint_dir
 
 
 def cross_validate_model(
