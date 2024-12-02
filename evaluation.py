@@ -1,8 +1,8 @@
+"""This file contains the Evaluator class."""
+
 import os
 import json
 from collections import Counter
-from sklearn.metrics import multilabel_confusion_matrix
-from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder
 from training import ModelTrainer
 from inference import IntentRecognition, IntentRecognitionSeparation, IntentSeparation
 from config import DATA_DIRECTORY
@@ -21,6 +21,22 @@ def cross_validate_model(
     num_train_epochs=30,
     weight_decay=0.01,
 ) -> dict:
+    """
+    Perform cross-validation on a model and return training and evaluation statistics.
+    Args:
+        prefix (str): Prefix for the metadata file.
+        model_name (str): Name of the model to be trained.
+        output_name (str): Name of the output directory for the model.
+        splits (int, optional): Number of splits for cross-validation. Default is 5.
+        seq (bool, optional): Whether to the task is sequence classification or not. Default is False.
+        learning_rate (float, optional): Learning rate for training. Default is 2e-5.
+        train_batch_size (int, optional): Batch size for training. Default is 16.
+        eval_batch_size (int, optional): Batch size for evaluation. Default is 16.
+        num_train_epochs (int, optional): Number of training epochs. Default is 30.
+        weight_decay (float, optional): Weight decay for the optimizer. Default is 0.01.
+    Returns:
+        dict: A dictionary containing training and evaluation statistics for each split.
+    """
     tracked_stats = {}
     for i in range(splits):
         # Rename metadata file
@@ -62,38 +78,29 @@ def cross_validate_model(
     return tracked_stats
 
 
-# def cross_validate(splits=5, shuffle=True, ablation=False, sep=False) -> None:
-#     if sep and ablation:
-#         raise ValueError("sep and ablation cannot be True at the same time")
-#     models_list = load_config()["models"]
-#     tracked_stats = {}
-#     prefix = "ablation_" if ablation else "separated_" if sep else ""
-
-#     for model in models_list:
-#         tracked_stats = cross_validate_model(
-#             prefix, model, "intent_recognition_separation", splits, sep
-#         )
-#         cv = {}
-#         if os.path.exists(
-#             os.path.join(CROSS_VALIDATION_DIRECTORY, f"{prefix}tracked_stats.json")
-#         ):
-#             with open(
-#                 os.path.join(CROSS_VALIDATION_DIRECTORY, f"{prefix}tracked_stats.json"),
-#                 "r",
-#                 encoding="utf8",
-#             ) as f:
-#                 cv = json.load(f)
-#         cv[model + "_intent_recognition_separation"] = tracked_stats
-#         with open(
-#             os.path.join(CROSS_VALIDATION_DIRECTORY, f"{prefix}tracked_stats.json"),
-#             "w",
-#             encoding="utf8",
-#         ) as f:
-#             json.dump(cv, f, ensure_ascii=False)
-
-
 class Evaluator:
+    """Evaluator class"""
+
     def __init__(self, classifier):
+        """
+        This instantiates the Evaluator class. It creates a bert model from a given string
+        and calculates the F1 score for each class.
+
+        Parameters:
+        classifier (object): An instance of one of the following classes:
+                             - IntentRecognition
+                             - IntentSeparation
+                             - IntentRecognitionSeparation
+
+        Raises:
+        ValueError: If the classifier is not an instance of the expected classes.
+
+        Attributes:
+        mode (str): The mode of the classifier, which can be "IntentRecognition",
+                    "IntentSeparation", or "IntentRecognitionSeparation".
+        model (object): The classifier instance.
+        prefix (str): A prefix string based on the mode of the classifier.
+        """
         self.mode = ""
         if isinstance(classifier, IntentRecognition):
             self.mode = "IntentRecognition"
@@ -161,10 +168,17 @@ class Evaluator:
                 y_pred.append(self.model.predict(row))
         return y_true, y_pred
 
-    def get_per_class_f1(self):
+    def get_per_class_f1(self) -> dict:
+        """
+        Calculate the F1 score for each class.
+        This method calculates the F1 score for each class based on the true labels and
+        predicted labels. It supports two modes: "IntentRecognition" and another mode
+        where multiple labels are considered.
+        Returns:
+            dict: A dictionary where keys are class labels and values are
+            the corresponding F1 scores.
+        """
         y_true, y_pred = self._get_y_true_y_pred()
-        # mlb = MultiLabelBinarizer()
-        # ohe = OneHotEncoder()
         y_true = list(
             map(
                 lambda x: (
@@ -173,19 +187,6 @@ class Evaluator:
                 y_true,
             )
         )
-        # y_true_bin = mlb.fit_transform(y_true)
-        # y_pred_bin = mlb.transform(y_pred)
-        # y_true_ohe = [ohe.fit_transform([x]) for x in y_true]
-        # y_pred_ohe = [ohe.transform([x]) for x in y_pred]
-        # # mcm = multilabel_confusion_matrix(y_true_bin, y_pred_bin, samplewise=True)
-        # mcm = multilabel_confusion_matrix(y_true_ohe, y_pred_ohe)
-        # results = {}
-        # for i, label in enumerate(ohe.categories_[0]):
-        #     # if all(mcm[i].ravel() == 0):
-        #     #     results[label] = "N/A"
-        #     #     continue
-        #     _, fp, fn, tp = mcm[i].ravel()
-        #     results[label] = self._calculate_f1(fp, fn, tp)
         fp_list = []
         fn_list = []
         tp_list = []

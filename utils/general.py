@@ -19,44 +19,6 @@ class SingletonMeta(type):
         return cls._instances[cls]
 
 
-# def delete_models(*model_names: str) -> None:
-#     """
-#     Deletes specified models and their associated checkpoint folders.
-
-#     Args:
-#         *model_names (str): Variable length argument list of model names to be deleted.
-
-#     Returns:
-#         None
-
-#     Raises:
-#         FileNotFoundError: If any of the specified model directories or files do not exist.
-#         PermissionError: If the program does not have permission to delete any of the
-#         files or directories.
-
-#     Example:
-#         delete_models("model1", "model2")
-#     """
-#     for model_name in model_names:
-#         model_name += "_intent_recognition_separation"
-#         model = os.path.join(MODELS_DIRECTORY, model_name)
-#         model_log = os.path.join(MODELS_DIRECTORY, f"{model_name}_log")
-#         if os.path.exists(model):
-#             for checkpoint_folder in os.listdir(model):
-#                 checkpoint_folder_path = os.path.join(model, checkpoint_folder)
-#                 for file in os.listdir(checkpoint_folder_path):
-#                     os.remove(os.path.join(checkpoint_folder_path, file))
-#                 os.rmdir(checkpoint_folder_path)
-#             os.removedirs(model)
-#         if os.path.exists(model_log):
-#             for checkpoint_folder in os.listdir(model_log):
-#                 checkpoint_folder_path = os.path.join(model_log, checkpoint_folder)
-#                 for file in os.listdir(checkpoint_folder_path):
-#                     os.remove(os.path.join(checkpoint_folder_path, file))
-#                 os.rmdir(checkpoint_folder_path)
-#             os.removedirs(model_log)
-
-
 def create_proxy_data(prefix: str, data: list) -> list:
     """Creates proxy data, since the data is multi class and multi label.
     We are interested in the distribution of single intent turns and multi intent turns.
@@ -106,6 +68,26 @@ def create_proxy_data(prefix: str, data: list) -> list:
 
 
 def get_last_checkpoint_dir(model_name: str, prefix: str, output_name: str) -> str:
+    """
+    Get the directory path of the last checkpoint for a given model.
+
+    This function constructs a directory name based on the provided model name,
+    prefix, and output name, then searches for checkpoint directories within
+    that directory. It returns the path to the directory containing the highest
+    numbered checkpoint.
+
+    Args:
+        model_name (str): The base name of the model.
+        prefix (str): A prefix to append to the model name.
+        output_name (str): An output name to append to the model name.
+
+    Returns:
+        str: The path to the directory containing the last checkpoint.
+
+    Raises:
+        FileNotFoundError: If the checkpoints directory does not exist.
+        ValueError: If no checkpoints are found in the directory.
+    """
     model_name += f"_{prefix}{output_name}_log"
     # Get the folder with the highest checkpoint number
     checkpoints_dir = os.path.join(MODELS_DIRECTORY, model_name)
@@ -121,6 +103,17 @@ def get_last_checkpoint_dir(model_name: str, prefix: str, output_name: str) -> s
 
 
 def get_train_eval_stats(last_checkpoint_dir: str) -> tuple:
+    """
+    Extracts training and evaluation statistics from the trainer state log file.
+
+    Args:
+        last_checkpoint_dir (str): The directory path where the last checkpoint is stored.
+
+    Returns:
+        tuple: A tuple containing two lists:
+            - train_stats (list): A list of dictionaries containing training statistics.
+            - eval_stats (list): A list of dictionaries containing evaluation statistics.
+    """
     # Load log_history from the last checkpoint
     log_history = []
     with open(
@@ -201,6 +194,15 @@ def check_for_splits(prefix: str, splits: int) -> bool:
 
 
 def check_for_train_test(prefix: str) -> bool:
+    """
+    Check if both train and test data files exist in the data directory with the given prefix.
+
+    Args:
+        prefix (str): The prefix to be used for the filenames.
+
+    Returns:
+        bool: True if both train and test data files exist, False otherwise.
+    """
     if not os.path.exists(os.path.join(DATA_DIRECTORY, f"{prefix}train_data.json")):
         return False
     if not os.path.exists(os.path.join(DATA_DIRECTORY, f"{prefix}test_data.json")):

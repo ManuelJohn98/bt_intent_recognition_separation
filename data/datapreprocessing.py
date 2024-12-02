@@ -276,8 +276,12 @@ def _transform_to_huggingface_format(
 
 
 def convert_all_raw_data(prefix: str) -> None:
-    """This function converts all tsv files in the given directory
-    to a single json file with the labels in the BIO format.
+    """
+    This function will convert all raw data in the data directory to a single json file.
+    The file will be named {prefix}preprocessed_data.json.
+
+    Args:
+        prefix (str): The prefix to be used for the output
     """
     stat = load_config()["statistics"]
     labeled_data = []
@@ -306,7 +310,21 @@ def convert_all_raw_data(prefix: str) -> None:
         stats.write_to_file(prefix)
 
 
-def _train_test_split(prefix: str, test_size: 0.15, shuffle=True, seq=False) -> None:
+def train_test_split_(prefix: str, test_size: 0.15, shuffle=True, seq=False) -> None:
+    """
+    This function will split the preprocessed data into training and testing data by
+    using the train_test_split function from sklearn. The data will be saved in two
+    separate files: {prefix}train_data.json and {prefix}test_data.json.
+
+    Args:
+        prefix (str): The prefix of the preprocessed data file
+        test_size (float): The size of the test data
+        shuffle (bool): Whether the data should be shuffled
+        seq (bool): Whether the task is a sequence classification task or not
+
+    Raises:
+        ValueError: If the number of samples in the proxy_data arrays are inconsistent
+    """
     seed = load_config()["seed"]
     data = {}
     with open(
@@ -350,15 +368,24 @@ def _train_test_split(prefix: str, test_size: 0.15, shuffle=True, seq=False) -> 
         json.dump(test_data, f, ensure_ascii=False)
 
 
-def prepare_for_training(
-    prefix: str, test_size: float, shuffle: bool, seq: bool
-) -> None:
-    _train_test_split(prefix, test_size, shuffle, seq)
-
-
 def prepare_for_cross_validation(
     prefix: str, splits=5, shuffle=True, seq=False
 ) -> None:
+    """
+    This function will prepare the data for cross validation by using the StratifiedKFold
+    from sklearn. The data will be split into training and testing data for each fold.
+    The data will be saved in separate files:
+    {fold}_{prefix}train_data.json and {fold}_{prefix}test_data.json.
+
+    Args:
+        prefix (str): The prefix of the preprocessed data file
+        splits (int): The number of splits
+        shuffle (bool): Whether the data should be shuffled
+        seq (bool): Whether the task is a sequence classification task or not
+
+    Raises:
+        ValueError: If the index that is returned from StratifiedKFold is invalid
+    """
     # Get seed
     seed = load_config()["seed"]
     # Generate proxy data
@@ -414,27 +441,3 @@ def prepare_for_cross_validation(
             encoding="utf8",
         ) as f:
             json.dump(test_data, f, ensure_ascii=False)
-
-
-def split_turns(prefix: str) -> None:
-    data = {}
-    with open(
-        os.path.join(DATA_DIRECTORY, f"{prefix}test_data.json"),
-        "r",
-        encoding="utf8",
-    ) as f:
-        data = json.load(f)
-
-    metadata = {}
-    with open(
-        os.path.join(DATA_DIRECTORY, f"{prefix}metadata.json"),
-        "r",
-        encoding="utf8",
-    ) as f:
-        metadata = json.load(f)
-
-    split_turns_dataset = {}
-    split_turns_dataset["data"] = []
-
-    for split_turns_turn_no, data_point in enumerate(data["data"], start=1):
-        pass

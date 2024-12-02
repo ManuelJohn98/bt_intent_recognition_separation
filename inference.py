@@ -1,3 +1,5 @@
+"""This file contains the Inference classes."""
+
 import os
 import torch
 from transformers import (
@@ -9,6 +11,8 @@ from config import MODELS_DIRECTORY
 
 
 class IntentRecognition:
+    """IntentRecognition class"""
+
     def __init__(self, prefix: str, model_name: str, output_name: str, mode: str):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         model_name = os.path.join(
@@ -22,6 +26,20 @@ class IntentRecognition:
         self.mode = mode
 
     def predict(self, text: str):
+        """
+        Predicts the label for the given text input using the model.
+
+        Args:
+            text (str): The input text to be classified.
+
+        Returns:
+            Depending on the mode set for the model, the function returns:
+            - logits (torch.Tensor): The raw logits from the model if mode is "logits".
+            - result (dict): A dictionary containing the label, score, and input text if mode is "score".
+            - prediction (int): The predicted label index if mode is "prediction".
+            - label (str): The predicted label if mode is "labels".
+            - label_id (int): The label ID if mode is "eval".
+        """
         inputs = self.tokenizer(text, return_tensors="pt")
         logits = None
         with torch.no_grad():
@@ -47,6 +65,8 @@ class IntentRecognition:
 
 
 class IntentRecognitionSeparation:
+    """IntentRecognitionSeparation class"""
+
     def __init__(self, prefix: str, model_name: str, output_name: str, mode: str):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         model_name = os.path.join(
@@ -60,6 +80,20 @@ class IntentRecognitionSeparation:
         self.mode = mode
 
     def predict(self, text: str):
+        """
+        Predicts the labels for the given text input.
+
+        Args:
+            text (str): The input text to be tokenized and predicted.
+
+        Returns:
+            Depending on the mode set for the model, the function returns:
+                - logits: Raw logits from the model if mode is "logits".
+                - results: A list of dictionaries containing labels, scores, and input tokens if mode is "score".
+                - prediction: The predicted token IDs if mode is "prediction".
+                - labels: A list of predicted labels if mode is "labels".
+                - eval: A list of label IDs for tokens starting with "▁" if mode is "eval".
+        """
         inputs = self.tokenizer(text, return_tensors="pt")
         logits = None
         with torch.no_grad():
@@ -100,4 +134,4 @@ class IntentRecognitionSeparation:
 
 
 class IntentSeparation(IntentRecognitionSeparation):
-    pass
+    """IntentSeparation class"""

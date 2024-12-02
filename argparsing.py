@@ -9,7 +9,7 @@ def parse_args() -> argparse.Namespace:
         description='This program can instantiate a model for intent recognition and sepratation. \
                 The model can either be trained on your data or you can replicate the results \
                     of the bachelor thesis "Intent Recognition and Separation for E-DRZ" \
-                    by using the provided data in the zip file in the data folder.',
+                    by putting the raw data in the coresponding folder.',
     )
     parser.add_argument(
         "--dataset_mode",
@@ -145,21 +145,22 @@ def parse_args() -> argparse.Namespace:
         default=0.01,
         required=False,
     )
-    parser.add_argument(
-        "--infer",
-        help="Enable to infer with the model(s)",
-        const=True,
-        default=False,
-        action="store_const",
-        required=False,
-    )
+    # parser.add_argument(
+    #     "--infer",
+    #     help="Enable to infer with the model(s)",
+    #     const=True,
+    #     default=False,
+    #     action="store_const",
+    #     required=False,
+    # )
     args = parser.parse_args()
-    preprocess = 1 if args.preprocessing else 0
+    # preprocess = 1 if args.preprocessing else 0
     train = 1 if args.train else 0
     cv = 1 if args.cv else 0
-    infer = 1 if args.infer else 0
-    if train + cv + infer != 1:
+    # infer = 1 if args.infer else 0
+    # if train + cv + infer != 1:
+    if train + cv != 1:
         raise ValueError("Exactly one of (train, cv, infer) must be chosen")
-    if preprocess + infer > 1:
-        raise ValueError("Preprocessing and infer cannot be chosen together")
+    # if preprocess + infer > 1:
+    # raise ValueError("Preprocessing and infer cannot be chosen together")
     return args

@@ -8,7 +8,7 @@ import sys
 import json
 from data.datapreprocessing import (
     convert_all_raw_data,
-    prepare_for_training,
+    train_test_split_,
     prepare_for_cross_validation,
 )
 from config import (
@@ -71,7 +71,7 @@ def main():
             ) and not os.path.exists(
                 os.path.join(MODELS_DIRECTORY, f"{prefix}test_data")
             ):
-                prepare_for_training(prefix, args.test_size, shuffle, seq)
+                train_test_split_(prefix, args.test_size, shuffle, seq)
         elif args.cv:
             if not check_for_splits(prefix, args.folds):
                 prepare_for_cross_validation(prefix, args.folds, shuffle, seq)
@@ -88,7 +88,6 @@ def main():
                     args.num_train_epochs,
                     args.weight_decay,
                 )
-                pass
             else:
                 raise FileNotFoundError(
                     "Train and test data files are missing. Please preprocess the data first."
