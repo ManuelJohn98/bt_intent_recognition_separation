@@ -6,17 +6,17 @@ from collections import defaultdict
 import json
 import re
 from sklearn.model_selection import train_test_split, StratifiedKFold
-import pandas as pd
-from config import data_directory, raw_data_directory, load_config
+from sklearn.preprocessing import MultiLabelBinarizer
+from config import DATA_DIRECTORY, RAW_DATA_DIRECTORY, load_config, FREQUENCY_MAPPING
 from stats.collectstatistics import StatisticsCollector
-from utils.utils import create_proxy_data, check_for_splits
+from utils.utils import create_proxy_data
 
 
 def _get_file_names_from_dir(ext: str = "tsv") -> list:
     """This function returns a list of all file names
     with the given extension in the current directory.
     """
-    return [file for file in os.listdir(raw_data_directory) if file.endswith(ext)]
+    return [file for file in os.listdir(RAW_DATA_DIRECTORY) if file.endswith(ext)]
 
 
 def _remove_count_from_label(label: str) -> str:
@@ -25,25 +25,43 @@ def _remove_count_from_label(label: str) -> str:
     return match.group(1)
 
 
+def _remove_label_from_count(label: str) -> str:
+    """This function will return the count of a label."""
+    match = re.search(r"\[(\d+)\]", label)
+    return match.group(1) if match else ""
+
+
+def _modify_label(label_with_count: str) -> str:
+    """This function will modify the label according to the mapping in config.py.
+    Returns new value for label with count.
+    """
+    label = _remove_count_from_label(label_with_count)
+    count = _remove_label_from_count(label_with_count)
+    new_label = FREQUENCY_MAPPING.get(label, label)
+    return f"{new_label}[{count}]" if count else f"{new_label}"
+
+
 def _preprocess_raw_data(file: str, prefix: str) -> dict:
     """This function takes a tsv file in the WebAnno
     format to have the data labeled in the BIO format.
     Returns a csv string.
     """
     stat = load_config()["statistics"]
-    file = os.path.join(raw_data_directory, file)
+    file = os.path.join(RAW_DATA_DIRECTORY, file)
     labeled_data = {}
     labeled_data["data"] = []
     separated_data_collection = defaultdict(lambda: defaultdict(list))
     bio_labels = set()
     labels = set()
+    lexicon = set()
+    ablation_goldlable_mapping = {}
     with open(file, "r", encoding="utf8") as f:
         current_turn_no = 0
         current_label = ""
         separated_label = ""
         separated_id = 0
         # Read WebAnno format
-        for line in f:
+        for line_no, line in enumerate(f):
             labeled_data_point = {}
             if line.startswith("#") or line == "\n":
                 separated_label = ""
@@ -54,39 +72,44 @@ def _preprocess_raw_data(file: str, prefix: str) -> dict:
             token = elements[2]
             # get the lable which is prefix of last element
             label_with_count = elements[3].split("[")[0].replace("\\", "")
-            # get the label count if it exists
-            label_count = re.search(r"\[(\d+)\]", elements[3])
-            if label_count:
-                label_count = label_count.group(1)
+            if "modified" in prefix:
+                label_with_count = _modify_label(label_with_count)
             # convert labels to BIO format
+            # Unlabeled data point -> O (other)
             if label_with_count == "_":
-                current_label = ""
+                labeled_data_point["line_no"] = line_no
                 labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "O"
                 labeled_data_point["token"] = token
-                labeled_data_point["splitting"] = "O"
+                labeled_data_point["splitting"] = "I"
                 bio_labels.add("O")
                 if stat:
-                    if prefix == "":
-                        stats = StatisticsCollector()
+                    stats = StatisticsCollector()
+                    stats.count_unlabeled("number_of_tokens")
+                    lexicon.add(token)
+                    if "ablation" in prefix:
+                        stats.count_labeled("dataBIO", "I")
+                    elif "separated_" in prefix:
+                        pass
+                        # if current_label != "":
+                        #     stats.count_labeled("data", "other")
+                    else:
                         stats.count_labeled("data", "other")
                         stats.count_labeled("dataBIO", "O")
-                        stats.count_unlabeled("number_of_tokens")
-                    elif prefix == "ablation_":
-                        stats = StatisticsCollector()
-                        stats.count_labeled("dataBIO", "O")
-                        stats.count_unlabeled("number_of_tokens")
+                current_label = ""
                 if separated_label != "":
                     separated_data_collection[separated_id][separated_label].append(
                         token
                     )
                 labeled_data["data"].append(labeled_data_point)
                 continue
+            # Start of a new turn
             if current_turn_no != turn_no:
                 current_turn_no = turn_no
                 current_label = label_with_count
                 # sometimes the label has a number at the end
                 label = _remove_count_from_label(label_with_count)
+                labeled_data_point["line_no"] = line_no
                 labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "B-" + label
                 labeled_data_point["token"] = token
@@ -94,21 +117,25 @@ def _preprocess_raw_data(file: str, prefix: str) -> dict:
                 bio_labels.add("B-" + label)
                 labels.add(label)
                 if stat:
-                    if prefix == "":
-                        stats = StatisticsCollector()
+                    stats = StatisticsCollector()
+                    stats.count_unlabeled("number_of_tokens")
+                    lexicon.add(token)
+                    if "ablation" in prefix:
+                        stats.count_labeled("dataBIO", "B")
+                    elif "separated_" in prefix:
+                        stats.count_labeled("data", label)
+                    else:
                         stats.count_labeled("data", label)
                         stats.count_labeled("dataBIO", f"B-{label}")
-                        stats.count_unlabeled("number_of_tokens")
-                    elif prefix == "ablation_":
-                        stats = StatisticsCollector()
-                        stats.count_labeled("dataBIO", "B")
-                        stats.count_unlabeled("number_of_tokens")
                 separated_id += 1
                 separated_data_collection[separated_id][label].append(token)
                 separated_label = label
+                ablation_goldlable_mapping[turn_id] = label
+            # New label within same turn
             elif current_label != label_with_count:
                 current_label = label_with_count
                 label = _remove_count_from_label(label_with_count)
+                labeled_data_point["line_no"] = line_no
                 labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "B-" + label
                 labeled_data_point["token"] = token
@@ -116,22 +143,25 @@ def _preprocess_raw_data(file: str, prefix: str) -> dict:
                 bio_labels.add("B-" + label)
                 labels.add(label)
                 if stat:
-                    if prefix == "":
-                        stats = StatisticsCollector()
+                    stats = StatisticsCollector()
+                    stats.count_unlabeled("number_of_tokens")
+                    stats.count_unlabeled("need_for_separation")
+                    lexicon.add(token)
+                    if "ablation" in prefix:
+                        stats.count_labeled("dataBIO", "B")
+                    elif "separated_" in prefix:
+                        stats.count_labeled("data", label)
+                    else:
                         stats.count_labeled("data", label)
                         stats.count_labeled("dataBIO", f"B-{label}")
-                        stats.count_unlabeled("number_of_tokens")
-                        stats.count_unlabeled("need_for_separation")
-                    elif prefix == "ablation_":
-                        stats = StatisticsCollector()
-                        stats.count_labeled("dataBIO", "B")
-                        stats.count_unlabeled("number_of_tokens")
-                        stats.count_unlabeled("need_for_separation")
                 separated_id += 1
                 separated_data_collection[separated_id][label].append(token)
                 separated_label = label
+                ablation_goldlable_mapping[turn_id] = label
+            # Label spans multiple tokens
             else:
                 # only use I for these intermediary labels without actual label
+                labeled_data_point["line_no"] = line_no
                 labeled_data_point["turn_no"] = turn_no
                 labeled_data_point["label"] = "I"
                 labeled_data_point["token"] = token
@@ -139,20 +169,26 @@ def _preprocess_raw_data(file: str, prefix: str) -> dict:
                 bio_labels.add("I")
                 labels.add(label)
                 if stat:
-                    if prefix == "":
-                        stats = StatisticsCollector()
+                    stats = StatisticsCollector()
+                    stats.count_unlabeled("number_of_tokens")
+                    lexicon.add(token)
+                    if "ablation" in prefix:
+                        stats.count_labeled("dataBIO", "I")
+                    elif "separated_" in prefix:
+                        # stats.count_labeled("data", label)
+                        pass
+                    else:
+                        stats.count_labeled("dataBIO", "I")
                         stats.count_labeled("data", label)
-                        stats.count_labeled("dataBIO", "I")
-                        stats.count_unlabeled("number_of_tokens")
-                    elif prefix == "ablation_":
-                        stats = StatisticsCollector()
-                        stats.count_labeled("dataBIO", "I")
-                        stats.count_unlabeled("number_of_tokens")
                 separated_data_collection[separated_id][label].append(token)
             # add the labeled data point to labeled data
             labeled_data["data"].append(labeled_data_point)
     labeled_data["labels"] = bio_labels
-    if prefix == "separated_":
+    if stat:
+        stats = StatisticsCollector()
+        for _ in range(len(lexicon)):
+            stats.count_unlabeled("number_of_unique_words")
+    if "separated_" in prefix:
         separated_data = {}
         separated_data["data"] = [
             {
@@ -165,7 +201,7 @@ def _preprocess_raw_data(file: str, prefix: str) -> dict:
         ]
         separated_data["labels"] = labels
         return separated_data
-    if prefix == "ablation_":
+    if "ablation_" in prefix:
         ablation_data = {}
         ablation_data["data"] = [
             {
@@ -175,7 +211,8 @@ def _preprocess_raw_data(file: str, prefix: str) -> dict:
             }
             for data_point in labeled_data["data"]
         ]
-        ablation_data["labels"] = {"B", "I", "O"}
+        ablation_data["goldlable_mapping"] = ablation_goldlable_mapping
+        ablation_data["labels"] = {"B", "I"}
         return ablation_data
     return labeled_data
 
@@ -194,7 +231,7 @@ def _transform_to_huggingface_format(
         metadata["label2id"][label] = i
     current_turn_no = 0
     data_id = 0
-    for data_point in labeled_data[1:]:
+    for data_point in labeled_data:
         turn_no = data_point["turn_no"]
         if current_turn_no != turn_no:
             # Prepare for new turn
@@ -250,16 +287,18 @@ def convert_all_raw_data(prefix: str) -> None:
         labeled_data = labeled_data + preprocessed_data["data"]
         labels = labels.union(preprocessed_data["labels"])
     transformed_labeled_data, metadata = _transform_to_huggingface_format(
-        labeled_data, labels, prefix == "separated_"
+        labeled_data, labels, "separated_" in prefix
     )
+    if "ablation_" in prefix:
+        metadata["goldlable_mapping"] = preprocessed_data["goldlable_mapping"]
     with open(
-        os.path.join(data_directory, f"{prefix}preprocessed_data.json"),
+        os.path.join(DATA_DIRECTORY, f"{prefix}preprocessed_data.json"),
         "w",
         encoding="utf8",
     ) as f:
         json.dump(transformed_labeled_data, f, ensure_ascii=False)
     with open(
-        os.path.join(data_directory, f"{prefix}metadata.json"), "w", encoding="utf8"
+        os.path.join(DATA_DIRECTORY, f"{prefix}metadata.json"), "w", encoding="utf8"
     ) as f:
         json.dump(metadata, f, ensure_ascii=False)
     if stat:
@@ -267,71 +306,71 @@ def convert_all_raw_data(prefix: str) -> None:
         stats.write_to_file(prefix)
 
 
-def _train_test_split(prefix: str, test_size: 0.15, shuffle=True, sep=False) -> None:
+def _train_test_split(prefix: str, test_size: 0.15, shuffle=True, seq=False) -> None:
     seed = load_config()["seed"]
     data = {}
     with open(
-        os.path.join(data_directory, f"{prefix}preprocessed_data.json"),
+        os.path.join(DATA_DIRECTORY, f"{prefix}preprocessed_data.json"),
         "r",
         encoding="utf8",
     ) as f:
         data = json.load(f)
-    if not sep:
+    y = None
+    if not seq:
         proxy_data = create_proxy_data(prefix, data["data"])
         if len(proxy_data[:, 0]) != len(proxy_data[:, 1]):
             raise ValueError("Inconsistent number of samples in proxy_data arrays")
-        train_data, test_data, _, _ = train_test_split(
-            data["data"],
-            proxy_data,
-            test_size=test_size,
-            shuffle=shuffle,
-            stratify=proxy_data[:, 1],
-            random_state=seed,
+        y = proxy_data
+    else:
+        mlb = MultiLabelBinarizer()
+        y = mlb.fit_transform(
+            [[data["data"][i]["label"]] for i in range(len(data["data"]))]
         )
-        train_data = {"data": train_data}
-        test_data = {"data": test_data}
-        with open(
-            os.path.join(data_directory, f"{prefix}train_data.json"),
-            "w",
-            encoding="utf8",
-        ) as f:
-            json.dump(train_data, f, ensure_ascii=False)
-        with open(
-            os.path.join(data_directory, f"{prefix}test_data.json"),
-            "w",
-            encoding="utf8",
-        ) as f:
-            json.dump(test_data, f, ensure_ascii=False)
-        return
-    raise NotImplementedError("Separation not implemented yet.")
+    train_data, test_data, _, _ = train_test_split(
+        data["data"],
+        y,
+        test_size=test_size,
+        shuffle=shuffle,
+        stratify=proxy_data[:, 1],
+        random_state=seed,
+    )
+    train_data = {"data": train_data}
+    test_data = {"data": test_data}
+    with open(
+        os.path.join(DATA_DIRECTORY, f"{prefix}train_data.json"),
+        "w",
+        encoding="utf8",
+    ) as f:
+        json.dump(train_data, f, ensure_ascii=False)
+    with open(
+        os.path.join(DATA_DIRECTORY, f"{prefix}test_data.json"),
+        "w",
+        encoding="utf8",
+    ) as f:
+        json.dump(test_data, f, ensure_ascii=False)
 
 
 def prepare_for_training(
-    prefix: str, test_size: float, shuffle: bool, sep: bool
+    prefix: str, test_size: float, shuffle: bool, seq: bool
 ) -> None:
-    _train_test_split(prefix, test_size, shuffle, sep)
+    _train_test_split(prefix, test_size, shuffle, seq)
 
 
 def prepare_for_cross_validation(
-    splits=5, shuffle=True, ablation=False, sep=False
+    prefix: str, splits=5, shuffle=True, seq=False
 ) -> None:
     # Get seed
     seed = load_config()["seed"]
-    # Add prefix for ablation data
-    prefix = "ablation_" if ablation else "separated_" if sep else ""
-    splits_exist = check_for_splits(prefix, splits)
-    if splits_exist:
-        return
     # Generate proxy data
     preprocessed_data = {}
     with open(
-        os.path.join(data_directory, f"{prefix}preprocessed_data.json"),
+        os.path.join(DATA_DIRECTORY, f"{prefix}preprocessed_data.json"),
         "r",
         encoding="utf8",
     ) as f:
         preprocessed_data = json.load(f)
     data = None
-    if not sep:
+    if not seq:
         data = create_proxy_data(prefix, preprocessed_data["data"])
     else:
         data = preprocessed_data["data"]
@@ -339,7 +378,7 @@ def prepare_for_cross_validation(
     # Get splits
     sfk = StratifiedKFold(n_splits=splits, shuffle=shuffle, random_state=seed)
     splits_generator = None
-    if not sep:
+    if not seq:
         splits_generator = sfk.split(data, data[:, 1])
     else:
         splits_generator = sfk.split(data, [data[i]["label"] for i in range(len(data))])
@@ -359,7 +398,7 @@ def prepare_for_cross_validation(
 
         with open(
             os.path.join(
-                data_directory,
+                DATA_DIRECTORY,
                 f"{str(i)}_{prefix}train_data.json",
             ),
             "w",
@@ -368,10 +407,34 @@ def prepare_for_cross_validation(
             json.dump(train_data, f, ensure_ascii=False)
         with open(
             os.path.join(
-                data_directory,
+                DATA_DIRECTORY,
                 f"{str(i)}_{prefix}test_data.json",
             ),
             "w",
             encoding="utf8",
         ) as f:
             json.dump(test_data, f, ensure_ascii=False)
+
+
+def split_turns(prefix: str) -> None:
+    data = {}
+    with open(
+        os.path.join(DATA_DIRECTORY, f"{prefix}test_data.json"),
+        "r",
+        encoding="utf8",
+    ) as f:
+        data = json.load(f)
+
+    metadata = {}
+    with open(
+        os.path.join(DATA_DIRECTORY, f"{prefix}metadata.json"),
+        "r",
+        encoding="utf8",
+    ) as f:
+        metadata = json.load(f)
+
+    split_turns_dataset = {}
+    split_turns_dataset["data"] = []
+
+    for split_turns_turn_no, data_point in enumerate(data["data"], start=1):
+        pass

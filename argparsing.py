@@ -4,6 +4,7 @@ import argparse
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse the arguments for the main.py file."""
     parser = argparse.ArgumentParser(
         description='This program can instantiate a model for intent recognition and sepratation. \
                 The model can either be trained on your data or you can replicate the results \
@@ -11,12 +12,24 @@ def parse_args() -> argparse.Namespace:
                     by using the provided data in the zip file in the data folder.',
     )
     parser.add_argument(
+        "--dataset_mode",
+        type=str,
+        help="The mode in which the dataset should be loaded:\n\
+            normal - load the dataset as is,\n\
+            modified - this maps certain infrequent labels to (semantically) more \
+            general labels, according to the mapping provided in the config.py file",
+        choices=["normal", "modified"],
+        default="normal",
+        required=False,
+        nargs=1,
+    )
+    parser.add_argument(
         "-m",
         "--mode",
         type=str,
         help="The mode in which the program should run: \
-            preprocess, train, validate, infer, or experiment",
-        choices=["preprocess", "train", "cv", "infer", "experiment"],
+            basic, ablation, separated",
+        choices=["basic", "ablation", "separated"],
         required=True,
         nargs=1,
     )
@@ -32,8 +45,8 @@ def parse_args() -> argparse.Namespace:
         "--no_shuffle",
         help="Do not shuffle the dataset before any splitting, whether for \
             simple holdout or cross validation. Shuffling is done by default.",
-        const=False,
-        default=True,
+        const=True,
+        default=False,
         action="store_const",
         required=False,
     )
@@ -70,29 +83,36 @@ def parse_args() -> argparse.Namespace:
         required=False,
     )
     parser.add_argument(
-        "--ablation",
-        help="Flag to run or prepare the ablation study\
-            (and cannot be used in combination with --separation)",
-        const=True,
-        default=False,
-        action="store_const",
-        required=False,
-    )
-    parser.add_argument(
-        "--separation",
-        help="Flag to run or prepare the study with separated dataset\
-            (cannot be used in combination with --ablation)",
-        const=True,
-        default=False,
-        action="store_const",
-        required=False,
-    )
-    parser.add_argument(
         "--output_name",
         help="The name to give the trained model to distinguish\
             it from the ones that are not fine-tuned",
         type=str,
-        default="intent_recognition_separation",
+        default="ft",
+        required=False,
+    )
+    parser.add_argument(
+        "--preprocessing",
+        help="Enable to preprocess the raw data files, \
+            combine with --train or --cv to create data splits or folds respectively",
+        const=True,
+        default=False,
+        action="store_const",
+        required=False,
+    )
+    parser.add_argument(
+        "--train",
+        help="Enable to train the model(s)",
+        const=True,
+        default=False,
+        action="store_const",
+        required=False,
+    )
+    parser.add_argument(
+        "--cv",
+        help="Enable to run cross validation study on the data with the model(s)",
+        const=True,
+        default=False,
+        action="store_const",
         required=False,
     )
     parser.add_argument(
@@ -125,7 +145,21 @@ def parse_args() -> argparse.Namespace:
         default=0.01,
         required=False,
     )
+    parser.add_argument(
+        "--infer",
+        help="Enable to infer with the model(s)",
+        const=True,
+        default=False,
+        action="store_const",
+        required=False,
+    )
     args = parser.parse_args()
-    if args.separation and args.ablation:
-        raise ValueError("sep and ablation cannot be True at the same time")
+    preprocess = 1 if args.preprocessing else 0
+    train = 1 if args.train else 0
+    cv = 1 if args.cv else 0
+    infer = 1 if args.infer else 0
+    if train + cv + infer != 1:
+        raise ValueError("Exactly one of (train, cv, infer) must be chosen")
+    if preprocess + infer > 1:
+        raise ValueError("Preprocessing and infer cannot be chosen together")
     return args

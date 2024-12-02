@@ -10,7 +10,7 @@ import json
 import matplotlib.pyplot as plt
 
 # import json
-from config import statistics_directory, cross_validation_directory
+from config import STATISTICS_DIRECTORY, CROSS_VALIDATION_DIRECTORY
 from utils.utils import SingletonMeta, get_last_checkpoint_dir, get_train_eval_stats
 
 
@@ -105,7 +105,7 @@ class StatisticsCollector(metaclass=SingletonMeta):
     class to store and access them all through a singleton object.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         pass
 
     def count_labeled(self, name: str, label: str) -> None:
@@ -198,7 +198,7 @@ class StatisticsCollector(metaclass=SingletonMeta):
                     res += f"{attr.replace("_", " ")}: {getattr(self, attr)}\n"
         return res
 
-    def plot_checkpoints(self, model_name: str, output_name: str):
+    def plot_checkpoints(self, model_name: str, prefix: str, output_name: str):
         """
         Plots the training and evaluation statistics of a model against the number of steps.
         Args:
@@ -210,13 +210,13 @@ class StatisticsCollector(metaclass=SingletonMeta):
         loss, F1 score, accuracy, precision, and recall over the steps.
         """
         train_stats, eval_stats = get_train_eval_stats(
-            get_last_checkpoint_dir(model_name, output_name)
+            get_last_checkpoint_dir(model_name, prefix, output_name)
         )
 
         # Plot the train and eval stats against the number of epochs
         # in two separate subplots
         fig, axs = plt.subplots(2)
-        fig.suptitle(f"Train and Eval Stats\n{model_name}_{output_name}")
+        fig.suptitle(f"Train and Eval Stats\n{model_name}_{prefix}{output_name}")
 
         # add grid only to the y-axis
         axs[0].grid(axis="y")
@@ -284,7 +284,7 @@ class StatisticsCollector(metaclass=SingletonMeta):
         contents will be overwritten.
         """
         with open(
-            os.path.join(statistics_directory, f"{prefix}statistics.txt"),
+            os.path.join(STATISTICS_DIRECTORY, f"{prefix}statistics.txt"),
             "w+",
             encoding="utf8",
         ) as f:
@@ -300,19 +300,19 @@ class StatisticsCollector(metaclass=SingletonMeta):
         """
         cv = {}
         with open(
-            os.path.join(cross_validation_directory, f"{prefix}tracked_stats.json"),
+            os.path.join(CROSS_VALIDATION_DIRECTORY, f"{prefix}tracked_stats.json"),
             "r",
             encoding="utf8",
         ) as f:
             cv = json.load(f)
 
-        colors = ["blue", "lightblue"]
+        colors = ["blue", "lightblue", "lightgreen", "green", "red", "orange", "purple"]
 
         for i, model in enumerate(cv, 1):
             stats = []
             for fold in cv[model]:
                 max_f1 = 0.0
-                for checkpoint in range(1, len(cv[model][fold]["eval"])):
+                for checkpoint in range(len(cv[model][fold]["eval"])):
                     max_f1 = max(max_f1, cv[model][fold]["eval"][checkpoint]["eval_f1"])
                 stats.append(max_f1)
             plt.boxplot(
@@ -324,17 +324,15 @@ class StatisticsCollector(metaclass=SingletonMeta):
                 label=model,
                 boxprops={"facecolor": colors[i - 1]},
             )
-        if prefix == "ablation_":
-            # add horizontal line as baseline
-            plt.axhline(
-                y=0.75, color="green", linestyle="--", label="Baseline Majority Label I"
-            )
+        # if "ablation" in prefix:
+        #     # add horizontal line as baseline
+        #     plt.axhline(y=0.21, color="green", linestyle="--", label="Baseline")
         # show grid
         plt.grid()
         # plt.yticks([0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1])
         # plt.ylim(0.4, 1)
         plt.ylabel("F1 Score")
-        plt.xticks([1, 2], ["", ""])
-        plt.xlim(0, 2.5)
+        plt.xticks(list(range(1, len(cv) + 1)), [""] * len(cv))
+        plt.xlim(0, len(cv) + 0.5)
         plt.legend()
         plt.show()

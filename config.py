@@ -4,17 +4,31 @@ import os
 import yaml
 
 # set root directory for this project
-root_directory = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 # set data directory
-data_directory = os.path.join(root_directory, "data")
+DATA_DIRECTORY = os.path.join(ROOT_DIRECTORY, "data")
 # set raw data directory
-raw_data_directory = os.path.join(data_directory, "raw_data")
+RAW_DATA_DIRECTORY = os.path.join(DATA_DIRECTORY, "raw_data")
 # set statistics directory
-statistics_directory = os.path.join(root_directory, "stats")
+STATISTICS_DIRECTORY = os.path.join(ROOT_DIRECTORY, "stats")
 #  set model directory
-models_directory = os.path.join(root_directory, "models")
+MODELS_DIRECTORY = os.path.join(ROOT_DIRECTORY, "models")
 # Set cross validation directory
-cross_validation_directory = os.path.join(root_directory, "cross_validation")
+CROSS_VALIDATION_DIRECTORY = os.path.join(ROOT_DIRECTORY, "cross_validation")
+
+FREQUENCY_MAPPING = {
+    "question_yes/no": "question",
+    "info_request": "question",
+    "answer": "info_provide",
+    "disconfirm": "_",
+}
+
+MODELS = [
+    "ikim-uk-essen/geberta-base",
+    # "flair/ner-german-large",
+    # "aseifert/distilbert-base-german-cased-comma-derstandard",
+    "dbmdz/bert-base-german-cased",
+]
 
 
 def load_config() -> dict:

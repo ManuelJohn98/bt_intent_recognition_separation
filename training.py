@@ -14,14 +14,14 @@ from transformers import (
 )
 import evaluate
 import numpy as np
-from config import data_directory, models_directory
+from config import DATA_DIRECTORY, MODELS_DIRECTORY
 from utils.utils import check_for_train_test
 
 
 class ModelTrainer:
     """This class is responsible for training the models."""
 
-    def __init__(self, prefix: str, model_name: str, sep: bool) -> None:
+    def __init__(self, prefix: str, model_name: str, seq: bool) -> None:
         """
         Initializes the training class with the given parameters.
 
@@ -45,27 +45,25 @@ class ModelTrainer:
             eval_metrics (Metric): The evaluation metrics for the model.
             model (PreTrainedModel): The pre-trained model for token or sequence classification.
         """
-        if not check_for_train_test(prefix):
-            raise ValueError("Train and test data not found")
         self.prefix = prefix
         self.model_name = model_name
         self.dataset = load_dataset(
             "json",
             data_files={
-                "train": os.path.join(data_directory, f"{prefix}train_data.json"),
-                "test": os.path.join(data_directory, f"{prefix}test_data.json"),
+                "train": os.path.join(DATA_DIRECTORY, f"{prefix}train_data.json"),
+                "test": os.path.join(DATA_DIRECTORY, f"{prefix}test_data.json"),
             },
             field="data",
         )
         self.metadata = {}
         with open(
-            os.path.join(data_directory, f"{prefix}metadata.json"), "r", encoding="utf8"
+            os.path.join(DATA_DIRECTORY, f"{prefix}metadata.json"), "r", encoding="utf8"
         ) as f:
             self.metadata = json.load(f)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.labels_list = list(self.metadata["label2id"].keys())
-        self.sep = sep
-        if not sep:
+        self.seq = seq
+        if not seq:
             self.data_collator = DataCollatorForTokenClassification(self.tokenizer)
             self.eval_metrics = evaluate.load("seqeval")
             self.model = AutoModelForTokenClassification.from_pretrained(
@@ -154,7 +152,7 @@ class ModelTrainer:
                   and accuracy. For classification tasks, the dictionary contains
                   weighted precision, recall, f1, and accuracy.
         """
-        if not self.sep:
+        if not self.seq:
             predictions, labels = p
             # Convert predictions to label IDs
             predictions = np.argmax(predictions, axis=2)
@@ -181,7 +179,7 @@ class ModelTrainer:
         predictions, labels = p
         predictions = np.argmax(predictions, axis=1)
         return self.eval_metrics.compute(
-            predictions=predictions, references=labels, average="weighted"
+            predictions=predictions, references=labels, average="macro"
         )
 
     def train(
@@ -196,7 +194,8 @@ class ModelTrainer:
         """
         Trains the model using the specified parameters and saves the trained model.
         Args:
-            output_name (str): The name to use for the output directory and logs. Default is "intent_recognition_separation".
+            output_name (str): The name to use for the output directory and logs.
+            Default is "intent_recognition_separation".
             learning_rate (float): The learning rate for training. Default is 2e-5.
             train_batch_size (int): The batch size for training. Default is 16.
             eval_batch_size (int): The batch size for evaluation. Default is 16.
@@ -205,11 +204,11 @@ class ModelTrainer:
         Returns:
             None
         """
-        tokenize = self.tokenize_and_align_labels if not self.sep else self.tokenize
+        tokenize = self.tokenize_and_align_labels if not self.seq else self.tokenize
         tokenized_dataset = self.dataset.map(tokenize, batched=True)
         training_args = TrainingArguments(
             output_dir=os.path.join(
-                models_directory, f"{self.model_name}_{output_name}_log"
+                MODELS_DIRECTORY, f"{self.model_name}_{self.prefix}{output_name}_log"
             ),
             learning_rate=learning_rate,
             per_device_train_batch_size=train_batch_size,
@@ -236,9 +235,7 @@ class ModelTrainer:
         trainer.train()
         self.model.save_pretrained(
             os.path.join(
-                models_directory,
-                f"{self.model_name}_{output_name}",
-                "final",
+                MODELS_DIRECTORY, f"{self.model_name}_{self.prefix}{output_name}_final"
             )
         )
 

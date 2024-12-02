@@ -5,17 +5,19 @@ from transformers import (
     AutoModelForTokenClassification,
     AutoModelForSequenceClassification,
 )
-from config import models_directory
+from config import MODELS_DIRECTORY
 
 
 class IntentRecognition:
-    def __init__(self, model_name: str, output_name: str, mode: str):
+    def __init__(self, prefix: str, model_name: str, output_name: str, mode: str):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model_name = os.path.join(models_directory, model_name + f"{output_name}/final")
+        model_name = os.path.join(
+            MODELS_DIRECTORY, model_name + "_" + f"{prefix}{output_name}_final"
+        )
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
-        if mode not in ["logits", "prediction", "score", "labels"]:
+        if mode not in ["logits", "prediction", "score", "labels", "eval"]:
             raise ValueError(
-                f"Mode must be one of 'logits', 'prediction', 'score' or 'labels', but got {mode}"
+                f"Mode must be one of 'logits', 'prediction', 'score', 'labels' or 'eval', but got {mode}"
             )
         self.mode = mode
 
@@ -28,19 +30,28 @@ class IntentRecognition:
             return logits
         prediction = torch.argmax(logits).item()
         label = self.model.config.id2label[prediction]
+        score = torch.softmax(logits, dim=1).tolist()[0]
+        result = {
+            "label": label,
+            "score": score[prediction],
+            "input": text,
+        }
         if self.mode == "score":
-            score = torch.softmax(logits, dim=1).tolist()[0]
-            return [{"label": label, "score": score}]
+            return result
         if self.mode == "prediction":
             return prediction
         if self.mode == "labels":
             return label
+        if self.mode == "eval":
+            return self.model.config.label2id[label]
 
 
 class IntentRecognitionSeparation:
-    def __init__(self, model_name: str, output_name: str, mode: str):
+    def __init__(self, prefix: str, model_name: str, output_name: str, mode: str):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model_name = os.path.join(models_directory, model_name + f"{output_name}/final")
+        model_name = os.path.join(
+            MODELS_DIRECTORY, model_name + "_" + f"{prefix}{output_name}_final"
+        )
         self.model = AutoModelForTokenClassification.from_pretrained(model_name)
         if mode not in ["logits", "prediction", "score", "labels", "eval"]:
             raise ValueError(
