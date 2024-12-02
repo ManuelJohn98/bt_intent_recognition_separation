@@ -349,7 +349,7 @@ def train_test_split_(prefix: str, test_size: 0.15, shuffle=True, seq=False) -> 
         y,
         test_size=test_size,
         shuffle=shuffle,
-        stratify=proxy_data[:, 1],
+        stratify=y[:, 1],
         random_state=seed,
     )
     train_data = {"data": train_data}
